@@ -1,6 +1,6 @@
 {
   "name": "@re-agentation/probe",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "React Native dev-only probe overlay — tap a component, annotate it, batch into a single AI edit request. Part of Re-agentation.",
   "license": "MIT",
   "repository": {
