@@ -2,16 +2,25 @@
  * <AgentationProbe />
  *
  * Root-mounted dev-only overlay. Renders nothing in production. In dev,
- * shows a floating toggle. When toggled on, captures the next tap and
+ * shows a draggable floating toggle. When armed, captures the next tap and
  * routes it through the comment-sheet → batch-tray → send flow.
  *
- * Designed to mount once at the top of the React tree (inside whatever
- * provider chain you already have). Doesn't add new providers.
+ * The toggle can be dragged and snaps to the nearest screen corner, so it
+ * never permanently blocks the component sitting underneath it.
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import type { GestureResponderEvent } from 'react-native'
+import {
+  Animated,
+  PanResponder,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native'
 
 import { BatchTraySheet } from './BatchTraySheet'
 import { CommentSheet } from './CommentSheet'
@@ -22,77 +31,151 @@ import { useBatch } from './useBatchStore'
 import type { BatchItem, BatchPayload, CapturedElement } from './types'
 import { uuid } from './uuid'
 
-type Position = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'
+type Corner = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'
 type Phase = 'idle' | 'armed' | 'commenting' | 'reviewing'
 
-export type ProbePosition = Position
+export type ProbePosition = Corner
 
 export interface AgentationProbeProps {
   metroHost?: string
-  position?: Position
+  position?: Corner
   storageKey?: string
+  /** Emit `[re-agentation]` capture diagnostics to the Metro console. */
+  debug?: boolean
 }
 
 declare const __DEV__: boolean
 
+const BTN = 44
+const MARGIN = 16
+const TOP_INSET = 60
+const BOTTOM_INSET = 40
+
 export function AgentationProbe(props: AgentationProbeProps = {}): React.ReactElement | null {
-  // Hard prod gate. Most bundlers DCE this on production builds since __DEV__
-  // is a const false then.
-  if (typeof __DEV__ !== 'undefined' && !__DEV__) {
-    return null
-  }
+  if (typeof __DEV__ !== 'undefined' && !__DEV__) return null
   return <AgentationProbeInner {...props} />
 }
 
 function AgentationProbeInner({
   metroHost: metroHostOverride,
   position = 'top-right',
+  debug = false,
 }: AgentationProbeProps): React.ReactElement {
+  const { width, height } = useWindowDimensions()
   const [phase, setPhase] = useState<Phase>('idle')
-  const [captured, setCaptured] = useState<{ element: CapturedElement; fallback: boolean } | null>(
-    null,
-  )
+  const [corner, setCorner] = useState<Corner>(position)
+  const [captured, setCaptured] = useState<{
+    element: CapturedElement
+    fallback: boolean
+    markerCoords?: BatchItem['markerCoords']
+  } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
-  const containerLayout = useRef<{ w: number; h: number }>({ w: 0, h: 0 })
 
   const metroHost = useMemo(() => resolveMetroHost(metroHostOverride), [metroHostOverride])
   const { items, actions } = useBatch()
 
-  const onContainerLayout = useCallback((e: LayoutChangeEvent) => {
-    containerLayout.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height }
+  const cornerXY = useCallback(
+    (c: Corner) => {
+      const left = c.endsWith('left') ? MARGIN : width - MARGIN - BTN
+      const top = c.startsWith('top') ? TOP_INSET : height - BOTTOM_INSET - BTN
+      return { x: left, y: top }
+    },
+    [width, height],
+  )
+
+  // Draggable toggle position.
+  const pan = useRef(new Animated.ValueXY(cornerXY(position))).current
+  const phaseRef = useRef<Phase>(phase)
+  phaseRef.current = phase
+
+  const nearestCorner = useCallback(
+    (px: number, py: number): Corner => {
+      const right = px + BTN / 2 > width / 2
+      const bottom = py + BTN / 2 > height / 2
+      return `${bottom ? 'bottom' : 'top'}-${right ? 'right' : 'left'}` as Corner
+    },
+    [width, height],
+  )
+
+  const onToggle = useCallback(() => {
+    setPhase((p) => (p === 'idle' ? 'armed' : p === 'armed' ? 'idle' : p))
   }, [])
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
+        onPanResponderGrant: () => {
+          const cur = cornerXY(corner)
+          // @ts-expect-error _value is internal but stable
+          pan.setOffset({ x: pan.x._value ?? cur.x, y: pan.y._value ?? cur.y })
+          pan.setValue({ x: 0, y: 0 })
+        },
+        onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+          useNativeDriver: false,
+        }),
+        onPanResponderRelease: (_e, g) => {
+          pan.flattenOffset()
+          const moved = Math.hypot(g.dx, g.dy) > 6
+          if (!moved) {
+            onToggle()
+            // settle back exactly to the current corner
+            Animated.spring(pan, {
+              toValue: cornerXY(corner),
+              useNativeDriver: false,
+              friction: 7,
+            }).start()
+            return
+          }
+          // @ts-expect-error _value internal
+          const px = pan.x._value as number
+          // @ts-expect-error _value internal
+          const py = pan.y._value as number
+          const next = nearestCorner(px, py)
+          setCorner(next)
+          Animated.spring(pan, {
+            toValue: cornerXY(next),
+            useNativeDriver: false,
+            friction: 7,
+          }).start()
+        },
+      }),
+    [pan, corner, cornerXY, nearestCorner, onToggle],
+  )
 
   // ─── tap interception ─────────────────────────────────────────────────
 
   const onCapture = useCallback(
     async (e: GestureResponderEvent) => {
-      if (phase !== 'armed') return
+      if (phaseRef.current !== 'armed') return
       const { pageX, pageY } = e.nativeEvent
       try {
-        const result = await captureAt({ x: pageX, y: pageY }, { metroHost })
+        const result = await captureAt({ x: pageX, y: pageY }, { metroHost, debug })
         if (!result) {
-          // Nothing was hit — return to armed.
+          if (debug) console.log('[re-agentation] tap produced no capture at', pageX, pageY)
           return
         }
-        // capture-fallback flag is smuggled on the result; pull it off.
-        const fallback = (result as any).__fallback === true
-        const clean: CapturedElement = {
-          component: result.component,
-          tree: result.tree,
-          source: result.source,
-          props: result.props,
-        }
-        setCaptured({ element: clean, fallback })
+        setCaptured({
+          element: {
+            component: result.component,
+            tree: result.tree,
+            source: result.source,
+            props: result.props,
+          },
+          fallback: result.fallback,
+          markerCoords: result.markerCoords,
+        })
         setPhase('commenting')
-      } catch {
-        // ignore — back to armed
+      } catch (err) {
+        if (debug) console.log('[re-agentation] capture threw', String(err))
       }
     },
-    [phase, metroHost],
+    [metroHost, debug],
   )
 
-  // ─── commenting actions ──────────────────────────────────────────────
+  // ─── commenting / batch actions ───────────────────────────────────────
 
   const finishCapture = useCallback(
     (comment: string, sendNow: boolean) => {
@@ -102,6 +185,7 @@ function AgentationProbeInner({
         element: captured.element,
         comment,
         fallback: captured.fallback,
+        markerCoords: captured.markerCoords,
       }
       actions.add(item)
       setCaptured(null)
@@ -130,8 +214,6 @@ function AgentationProbeInner({
     [editingId, actions],
   )
 
-  // ─── send ────────────────────────────────────────────────────────────
-
   const doSend = useCallback(
     async (toSend: BatchItem[]): Promise<void> => {
       if (toSend.length === 0) return
@@ -144,29 +226,24 @@ function AgentationProbeInner({
       }
       const result = await sendBatch(payload, { hostOverride: metroHost })
       setSending(false)
-      if (result.ok) {
-        actions.clear()
-      } else {
-        // Keep items in the batch so the user can retry.
-        // eslint-disable-next-line no-console
-        console.warn('[re-agentation] send failed:', result.error)
-      }
+      if (result.ok) actions.clear()
+      // eslint-disable-next-line no-console
+      else console.warn('[re-agentation] send failed:', result.error)
     },
     [metroHost, actions],
   )
 
   // ─── render ──────────────────────────────────────────────────────────
 
-  const toggleButtonStyle = positionStyle(position)
   const showCaptureLayer = phase === 'armed'
-  const showBorder = phase === 'armed' || phase === 'commenting' || phase === 'reviewing'
+  const showBorder = phase !== 'idle'
 
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={onContainerLayout}>
-      {/* Border indicator */}
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {showBorder && <View pointerEvents="none" style={styles.borderIndicator} />}
 
-      {/* Tap capture layer (only when armed) */}
+      {/* Tap capture layer (only when armed). Sits BELOW the toggle so the
+          toggle stays draggable/tappable while armed. */}
       {showCaptureLayer && (
         <View
           style={StyleSheet.absoluteFill}
@@ -175,34 +252,28 @@ function AgentationProbeInner({
         />
       )}
 
-      {/* Markers (always shown when there are items) */}
       <MarkerLayer items={items} />
 
-      {/* Floating toggle */}
-      <Pressable
-        style={[styles.toggle, toggleButtonStyle]}
-        onPress={() => {
-          if (phase === 'idle') setPhase('armed')
-          else if (phase === 'armed') setPhase('idle')
-        }}
-        hitSlop={8}
-      >
-        <Text style={[styles.toggleText, phase === 'armed' && styles.toggleTextActive]}>
-          {phase === 'idle' ? '◉' : '●'}
-        </Text>
-      </Pressable>
-
-      {/* Tray button — visible while armed/reviewing if there are items */}
+      {/* Tray button — follows the toggle's corner, offset inward. */}
       {(phase === 'armed' || phase === 'reviewing') && items.length > 0 && (
         <Pressable
-          style={[styles.tray, traySidePos(position)]}
+          style={[styles.tray, trayPos(corner, width, height)]}
           onPress={() => setPhase('reviewing')}
         >
           <Text style={styles.trayText}>{items.length}</Text>
         </Pressable>
       )}
 
-      {/* Comment sheet */}
+      {/* Draggable floating toggle (always on top). */}
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[styles.toggle, { transform: pan.getTranslateTransform() }]}
+      >
+        <Text style={[styles.toggleText, phase === 'armed' && styles.toggleTextActive]}>
+          {phase === 'idle' ? '◉' : '●'}
+        </Text>
+      </Animated.View>
+
       {phase === 'commenting' && captured && (
         <CommentSheet
           element={captured.element}
@@ -216,7 +287,6 @@ function AgentationProbeInner({
         />
       )}
 
-      {/* Edit sheet (re-uses CommentSheet) */}
       {editingItem && (
         <CommentSheet
           element={editingItem.element}
@@ -224,7 +294,6 @@ function AgentationProbeInner({
           onAdd={(c) => finishEdit(c)}
           onSendNow={(c) => {
             finishEdit(c)
-            // Trigger send on next tick after store update settles.
             setTimeout(() => void doSend(items), 0)
           }}
           onCancel={() => {
@@ -234,7 +303,6 @@ function AgentationProbeInner({
         />
       )}
 
-      {/* Tray sheet */}
       {phase === 'reviewing' && !editingItem && (
         <BatchTraySheet
           items={items}
@@ -252,34 +320,14 @@ function AgentationProbeInner({
   )
 }
 
-// ─── positioning helpers ───────────────────────────────────────────────
-
-function positionStyle(p: Position) {
-  const offset = 60 // safe-area-ish
-  switch (p) {
-    case 'top-right':
-      return { top: offset, right: 16 }
-    case 'top-left':
-      return { top: offset, left: 16 }
-    case 'bottom-right':
-      return { bottom: 32, right: 16 }
-    case 'bottom-left':
-      return { bottom: 32, left: 16 }
-  }
-}
-
-function traySidePos(p: Position) {
-  // Place tray opposite the toggle vertically, same horizontal side.
-  switch (p) {
-    case 'top-right':
-      return { bottom: 32, right: 16 }
-    case 'top-left':
-      return { bottom: 32, left: 16 }
-    case 'bottom-right':
-      return { top: 60, right: 16 }
-    case 'bottom-left':
-      return { top: 60, left: 16 }
-  }
+// Tray sits just inside the toggle's corner, offset along the vertical edge
+// so the two never overlap.
+function trayPos(corner: Corner, width: number, height: number) {
+  const left = corner.endsWith('left') ? MARGIN : width - MARGIN - BTN
+  const top = corner.startsWith('top')
+    ? TOP_INSET + BTN + 12
+    : height - BOTTOM_INSET - BTN - BTN - 12
+  return { left, top }
 }
 
 const styles = StyleSheet.create({
@@ -287,13 +335,14 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderWidth: 3,
     borderColor: '#ef4444',
-    borderRadius: 0,
   },
   toggle: {
     position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    top: 0,
+    left: 0,
+    width: BTN,
+    height: BTN,
+    borderRadius: BTN / 2,
     backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
@@ -307,9 +356,9 @@ const styles = StyleSheet.create({
   toggleTextActive: { color: '#ef4444' },
   tray: {
     position: 'absolute',
-    minWidth: 44,
-    height: 44,
-    borderRadius: 22,
+    minWidth: BTN,
+    height: BTN,
+    borderRadius: BTN / 2,
     backgroundColor: '#ef4444',
     paddingHorizontal: 12,
     alignItems: 'center',

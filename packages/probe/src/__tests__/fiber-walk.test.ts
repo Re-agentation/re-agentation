@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseDebugStack, userComponentChain } from '../fiber-walk'
+import { parseDebugStack } from '../fiber-walk'
 
 const REAL_STACK = [
   'Error: react-stack-top-frame',
@@ -35,38 +35,17 @@ describe('parseDebugStack', () => {
   })
 })
 
-describe('userComponentChain', () => {
-  // Build a small synthetic fiber tree: AIBar (debugOwner=TodayHeader) → TodayHeader (=TodayScreen) → TodayScreen
-  function fiber(name: string, debugOwner: any = null): any {
-    return {
-      type: { displayName: name },
-      _debugOwner: debugOwner,
-    }
-  }
-
-  it('walks _debugOwner chain root→leaf', () => {
-    const todayScreen = fiber('TodayScreen')
-    const header = fiber('TodayHeader', todayScreen)
-    const aiBar = fiber('AIBar', header)
-    const chain = userComponentChain(aiBar, 8)
-    const names = chain.map((f: any) => f.type.displayName)
-    expect(names).toEqual(['TodayScreen', 'TodayHeader', 'AIBar'])
-  })
-
-  it('skips internal/anonymous wrappers', () => {
-    const inner = fiber('TodayScreen')
-    const wrapped = fiber('withI18nextTranslation', inner)
-    const root = fiber('App', wrapped)
-    const chain = userComponentChain(root, 8)
-    const names = chain.map((f: any) => f.type.displayName)
-    expect(names).toEqual(['TodayScreen', 'App'])
-    expect(names).not.toContain('withI18nextTranslation')
-  })
-
-  it('respects maxDepth', () => {
-    let f = fiber('Leaf')
-    for (let i = 0; i < 30; i++) f = fiber('Wrap' + i, f)
-    const chain = userComponentChain(f, 5)
-    expect(chain.length).toBeLessThanOrEqual(5)
+describe('parseDebugStack — Metro App.bundle frames', () => {
+  it('parses bare-RN App.bundle owner frames (RN 0.85)', () => {
+    const err = new Error('react-stack-top-frame')
+    err.stack = [
+      'Error: react-stack-top-frame',
+      '    at anonymous (http://localhost:8081/App.bundle//&platform=ios&app=com.nubeem.mobile:25670:77)',
+      '    at ThemeProvider (http://localhost:8081/App.bundle//&platform=ios&app=com.nubeem.mobile:225528:50)',
+    ].join('\n')
+    const frames = parseDebugStack(err)
+    expect(frames[1]?.methodName).toBe('ThemeProvider')
+    expect(frames[1]?.file).toContain('App.bundle')
+    expect(frames[1]?.lineNumber).toBe(225528)
   })
 })

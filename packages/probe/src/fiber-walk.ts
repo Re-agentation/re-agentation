@@ -1,41 +1,36 @@
 /**
  * Fiber walk — given a tap coordinate, return:
- *   1. The user component fiber underneath the tap.
+ *   1. The user component under the tap (+ its ancestor chain).
  *   2. Its source location (file + line), resolved via Metro symbolicate.
- *   3. Its user-component ancestor chain (e.g. ["TodayScreen", "AIBar"]).
+ *   3. A frame box for the on-screen marker.
  *
- * Strategy (decided after Phase 0 validation on 2026-05-29):
+ * Strategy (revised 2026-05-29 after on-device testing):
  *
- *   • Source channel = React 19's `_debugStack` (an `Error('react-stack-top-frame')`).
- *     Babel's `__source` prop is NOT propagated to fiber.memoizedProps in React 19,
- *     so we don't try it.
+ *   • HIT-TEST = React Native's own native hit-test, reached through the
+ *     DevTools hook: `renderer.rendererConfig.getInspectorDataForViewAtPoint`.
+ *     This is exactly what RN's built-in Element Inspector uses, so it is the
+ *     verified Fabric path. (The earlier approach — measuring every host fiber
+ *     with `measureInWindow` and doing JS-side point-in-rect — did not work
+ *     reliably on Fabric and is gone.)
  *
- *   • Hit-test = host-fiber DFS + `measureInWindow`. We collect host fibers
- *     (tag === 5 in React 18, the HostComponent constant), measure each, and
- *     pick the smallest box containing the tap.
+ *   • The hit-test requires a root host instance as its first arg (a null
+ *     `inspectedView` makes Fabric's `getNodeFromPublicInstance` return null
+ *     and the hit-test no-ops). We get it by walking the fiber root's child
+ *     chain to the first HostComponent's `stateNode`.
  *
- *   • From the picked host fiber, walk `_debugOwner` upward and collect
- *     user components (function/class with PascalCase displayName/name) up
- *     to a sane depth.
+ *   • SOURCE = React 19's `_debugStack` on the touched fiber (the proven
+ *     channel from Phase 0), parsed for the owner call-site frame and run
+ *     through Metro `/symbolicate`. Falls back to `viewData.componentStack`.
+ *     If neither resolves, `source: null` + `fallback: true` (Claude greps).
  *
- *   • For the leaf (closest user component), parse `_debugStack.stack`
- *     frame 2 — this is the owner's render call site — and symbolicate it
- *     to recover the original `.tsx:line`.
- *
- *   • Tree array = displayName chain root→leaf.
- *
- * If symbolicate fails or the stack can't be parsed, return the element
- * with `source: null` and `fallback: true` so Claude can grep by name.
+ *   • TREE / NAME = `viewData.hierarchy` (component-name chain), filtered to
+ *     user components.
  */
 
 import type { CapturedElement } from './types'
 import { symbolicate, type BundledFrame } from './symbolicate-client'
 
-// React fiber tag constants (stable across React 18+).
-// Source: react-reconciler ReactWorkTags.js
 const HOST_COMPONENT = 5
-const HOST_HOIST = 26 // ActivityComponent in some React 19 builds
-const HOST_TEXT = 6
 
 export interface TapHit {
   x: number
@@ -43,16 +38,18 @@ export interface TapHit {
 }
 
 export interface FiberWalkOptions {
-  /** Metro host base, e.g. `http://localhost:8081`. */
   metroHost: string
-  /** Workspace root for source-path normalization. */
   projectRoot?: string
-  /** Max parent depth when collecting user components. Default 8. */
-  maxDepth?: number
+  /** Emit `[re-agentation]` diagnostics to the Metro console. Default false. */
+  debug?: boolean
 }
 
-// Loose fiber typings — fiber is heavily duck-typed internal data structure.
-// We intentionally don't import React internals.
+/** Extra fields smuggled alongside CapturedElement back to the probe. */
+export interface CaptureResult extends CapturedElement {
+  fallback: boolean
+  markerCoords?: { x: number; y: number; w: number; h: number }
+}
+
 type AnyFiber = {
   tag?: number
   type?: any
@@ -66,229 +63,239 @@ type AnyFiber = {
   memoizedProps?: Record<string, unknown> | null
 }
 
+interface HierarchyItem {
+  name?: string | null
+  getInspectorData?: unknown
+}
+interface ViewData {
+  hierarchy?: HierarchyItem[]
+  closestInstance?: unknown
+  closestPublicInstance?: unknown
+  componentStack?: string
+  frame?: { top: number; left: number; width: number; height: number }
+  selectedIndex?: number | null
+}
+
 export async function captureAt(
   hit: TapHit,
   options: FiberWalkOptions,
-): Promise<CapturedElement | null> {
-  const root = getFiberRoot()
-  if (!root) return null
+): Promise<CaptureResult | null> {
+  const log = (...a: unknown[]) => {
+    if (options.debug) console.log('[re-agentation]', ...a)
+  }
 
-  // 1. Collect all host fibers with their boxes.
-  const hostFiber = await pickHostFiberAt(root.current, hit)
-  if (!hostFiber) return null
-
-  // 2. Walk debug owner chain to find user component ancestors.
-  const ownerChain = userComponentChain(hostFiber, options.maxDepth ?? 8)
-  if (ownerChain.length === 0) {
-    // No user component above this host — give up.
+  const targets = getInspectorTargets()
+  if (targets.length === 0) {
+    log('capture: no renderer with getInspectorDataForViewAtPoint + root instance')
     return null
   }
 
-  const leaf = ownerChain[ownerChain.length - 1]!
-  const treeNames = ownerChain.map((f) => displayNameOf(f))
+  // RN can register several renderers (main surface + dev overlays). Only the
+  // one whose tree contains the point fires with data — try each.
+  let viewData: ViewData | null = null
+  for (const t of targets) {
+    viewData = await runHitTest(t.renderer, t.rootInstance, hit.x, hit.y)
+    if (viewData && (viewData.hierarchy?.length ?? 0) > 0) break
+    viewData = null
+  }
+  if (!viewData) {
+    log('capture: hit-test returned nothing at', hit.x, hit.y)
+    return null
+  }
 
-  // 3. Parse _debugStack of the leaf to find its render call site.
-  const ownerFrames = parseDebugStack(leaf._debugStack)
+  const hierarchy = Array.isArray(viewData.hierarchy) ? viewData.hierarchy : []
+  const allNames = hierarchy.map((h) => h?.name).filter((n): n is string => !!n)
+  const userNames = allNames.filter(isUserComponentName)
+  const tree = userNames.length > 0 ? userNames : allNames
+  const component = tree[tree.length - 1] ?? allNames[allNames.length - 1] ?? '<unknown>'
+  log('capture: hierarchy', allNames.join(' > '), '| user', tree.join(' > '))
 
-  // We want the frame that represents the parent's call to this component,
-  // which is typically the SECOND frame (frame 0 = react-internal anonymous,
-  // frame 1 = the actual owner's source line).
-  const callSiteFrame = ownerFrames[1] ?? ownerFrames[0] ?? null
+  // Source resolution.
+  const fiber = asFiber(viewData.closestInstance)
+  const frames = collectSourceFrames(fiber, viewData.componentStack)
+  log('capture: source frames', frames.length)
 
-  // 4. Symbolicate.
   let source: { file: string; line: number; column?: number } | null = null
   let fallback = true
-  if (callSiteFrame) {
+  if (frames.length > 0) {
     try {
-      const [sym] = await symbolicate([callSiteFrame], {
+      const sym = await symbolicate(frames, {
         metroHost: options.metroHost,
         projectRoot: options.projectRoot,
       })
-      if (sym?.file) {
-        source = { file: sym.file, line: sym.lineNumber, column: sym.column }
+      const hitFrame = sym.find((s) => s.file)
+      if (hitFrame?.file) {
+        source = { file: hitFrame.file, line: hitFrame.lineNumber, column: hitFrame.column }
         fallback = false
       }
-    } catch {
-      // swallow — fall through to fallback path
+      log('capture: symbolicated ->', source ? `${source.file}:${source.line}` : 'no source')
+    } catch (e) {
+      log('capture: symbolicate threw', String(e))
     }
   }
 
-  // 5. Build CapturedElement.
-  return {
-    component: treeNames[treeNames.length - 1] ?? '<unknown>',
-    tree: treeNames,
-    source,
-    props: shallowSafeProps(leaf.memoizedProps),
-    // We flag fallback into a separate channel; the consumer of CapturedElement
-    // (probe state machine) carries it onto BatchItem.fallback.
-    ...({ __fallback: fallback } as any),
+  const props = fiber?.memoizedProps != null ? shallowSafeProps(fiber.memoizedProps) : {}
+
+  const markerCoords = viewData.frame
+    ? {
+        x: viewData.frame.left,
+        y: viewData.frame.top,
+        w: viewData.frame.width,
+        h: viewData.frame.height,
+      }
+    : undefined
+
+  return { component, tree, source, props, fallback, markerCoords }
+}
+
+// ─── renderer + root instance ─────────────────────────────────────────────
+
+type Renderer = {
+  rendererConfig?: {
+    getInspectorDataForViewAtPoint?: (
+      inspectedView: unknown,
+      x: number,
+      y: number,
+      cb: (viewData: ViewData) => boolean,
+    ) => void
   }
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────
+function getHook(): any {
+  return (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__
+}
 
-function getFiberRoot(): { current: AnyFiber } | null {
-  const hook = (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__
-  if (!hook?.renderers || !hook?.getFiberRoots) return null
-  // Use renderer 1 — the default React renderer in dev. RN registers
-  // additional renderers (e.g., react-test-renderer) but #1 is the live one.
-  let roots: Set<{ current: AnyFiber }> | undefined
-  try {
-    roots = hook.getFiberRoots(1)
-  } catch {
-    return null
-  }
-  if (!roots) return null
-  const arr = Array.from(roots)
-  return arr[0] ?? null
+interface InspectorTarget {
+  renderer: Renderer
+  rootInstance: unknown
 }
 
 /**
- * DFS the fiber tree, collect host fibers, measure each, pick the smallest
- * box containing the tap. Returns null if no host fiber matches.
- */
-async function pickHostFiberAt(rootFiber: AnyFiber, hit: TapHit): Promise<AnyFiber | null> {
-  const hosts: AnyFiber[] = []
-  collectHostFibers(rootFiber, hosts)
-
-  type Measured = { fiber: AnyFiber; x: number; y: number; w: number; h: number }
-  const measured: Measured[] = []
-
-  // Run all measurements in parallel. measureInWindow is a JNI/Fabric call;
-  // running them serially would block for 100ms+ on a busy screen.
-  await Promise.all(
-    hosts.map(
-      (fiber) =>
-        new Promise<void>((resolve) => {
-          const node = fiber.stateNode
-          if (!node || typeof node.measureInWindow !== 'function') {
-            resolve()
-            return
-          }
-          let settled = false
-          // Safety timeout in case measureInWindow never fires its callback
-          // (happens for detached host nodes mid-unmount).
-          const timer = setTimeout(() => {
-            if (!settled) {
-              settled = true
-              resolve()
-            }
-          }, 200)
-          try {
-            node.measureInWindow((x: number, y: number, w: number, h: number) => {
-              if (settled) return
-              settled = true
-              clearTimeout(timer)
-              if (
-                typeof x === 'number' &&
-                typeof y === 'number' &&
-                typeof w === 'number' &&
-                typeof h === 'number'
-              ) {
-                measured.push({ fiber, x, y, w, h })
-              }
-              resolve()
-            })
-          } catch {
-            settled = true
-            clearTimeout(timer)
-            resolve()
-          }
-        }),
-    ),
-  )
-
-  const containing = measured.filter(
-    (m) =>
-      hit.x >= m.x &&
-      hit.x <= m.x + m.w &&
-      hit.y >= m.y &&
-      hit.y <= m.y + m.h &&
-      m.w > 0 &&
-      m.h > 0,
-  )
-  if (containing.length === 0) return null
-
-  // Smallest area = innermost.
-  containing.sort((a, b) => a.w * a.h - b.w * b.h)
-  return containing[0]!.fiber
-}
-
-function collectHostFibers(node: AnyFiber | null | undefined, out: AnyFiber[]): void {
-  if (!node) return
-  if (node.tag === HOST_COMPONENT || node.tag === HOST_HOIST || node.tag === HOST_TEXT) {
-    out.push(node)
-  }
-  collectHostFibers(node.child, out)
-  collectHostFibers(node.sibling, out)
-}
-
-/**
- * Walk `_debugOwner` chain from a fiber, returning user components only.
- * "User component" = function or class with a non-anonymous name that isn't
- * a known internal/wrapper.
+ * Every renderer that (a) exposes the inspector and (b) has a resolvable root
+ * public instance. RN registers multiple renderers (main surface + dev
+ * overlays); we try each at hit-test time.
  *
- * Returns root→leaf order (oldest ancestor first).
+ * On the New Architecture (Fabric), `fiber.stateNode` is the internal handle
+ * `{ node, canonical }`, NOT a public instance — and
+ * `getInspectorDataForViewAtPoint` calls `getNodeFromPublicInstance(view)`,
+ * which returns null for the internal handle (so the native hit-test silently
+ * no-ops). The public instance lives at `stateNode.canonical.publicInstance`.
+ * Verified on RN 0.85.3 + React 19.2.3 (2026-05-29). Falls back to the raw
+ * stateNode for the old architecture (Paper), where stateNode IS the public
+ * instance.
  */
-export function userComponentChain(start: AnyFiber, maxDepth: number): AnyFiber[] {
-  const out: AnyFiber[] = []
-  let f: AnyFiber | null | undefined = start
-  let depth = 0
-  while (f && depth < maxDepth * 4) {
-    if (isUserComponent(f)) out.push(f)
-    f = f._debugOwner ?? null
-    depth++
+function getInspectorTargets(): InspectorTarget[] {
+  const hook = getHook()
+  const out: InspectorTarget[] = []
+  if (!hook?.renderers || !hook?.getFiberRoots) return out
+  let entries: Array<[number, unknown]> = []
+  try {
+    entries = Array.from(hook.renderers as Map<number, unknown>)
+  } catch {
+    return out
   }
-  // The leaf we tapped first is at out[0]; we want root→leaf.
-  return out.reverse().slice(-maxDepth)
+  for (const [id, r] of entries) {
+    const renderer = r as Renderer
+    if (!renderer?.rendererConfig?.getInspectorDataForViewAtPoint) continue
+    let roots: Set<{ current: AnyFiber }> | undefined
+    try {
+      roots = hook.getFiberRoots(id)
+    } catch {
+      continue
+    }
+    const root = roots ? Array.from(roots)[0] : undefined
+    if (!root?.current) continue
+    let f: AnyFiber | null | undefined = root.current.child
+    let guard = 0
+    let rootInstance: unknown = null
+    while (f && guard++ < 60) {
+      if (f.tag === HOST_COMPONENT && f.stateNode) {
+        const sn = f.stateNode as { canonical?: { publicInstance?: unknown } }
+        rootInstance = sn.canonical?.publicInstance ?? f.stateNode
+        break
+      }
+      f = f.child
+    }
+    if (rootInstance) out.push({ renderer, rootInstance })
+  }
+  return out
 }
 
-const INTERNAL_NAME_RE =
-  /^(?:_LogBox|LogBox|DebuggingOverlay|AppContainer|NubeemMobile|withI18nextTranslation|Provider|Consumer)/
-const ANON_RE = /^anonymous$|^Object$|^<\?>$/
-
-function isUserComponent(f: AnyFiber): boolean {
-  const t = f.type ?? f.elementType
-  if (!t) return false
-  // Function/class component, or wrapper (forwardRef/memo) which is an
-  // object with React internals, or a synthetic shape with `displayName`.
-  const isFunction = typeof t === 'function'
-  const isReactWrapper =
-    typeof t === 'object' && t !== null && (t.$$typeof || t.render || t.type || t.displayName)
-  if (!isFunction && !isReactWrapper) return false
-
-  const name = displayNameOfRaw(t)
-  if (!name) return false
-  if (ANON_RE.test(name)) return false
-  if (INTERNAL_NAME_RE.test(name)) return false
-  // PascalCase guard
-  return /^[A-Z]/.test(name)
+function runHitTest(
+  renderer: Renderer,
+  rootInstance: unknown,
+  x: number,
+  y: number,
+): Promise<ViewData | null> {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (v: ViewData | null) => {
+      if (!done) {
+        done = true
+        resolve(v)
+      }
+    }
+    try {
+      renderer.rendererConfig!.getInspectorDataForViewAtPoint!(rootInstance, x, y, (viewData) => {
+        finish(viewData)
+        return true // stop after first hit
+      })
+    } catch {
+      finish(null)
+    }
+    // Fabric's findNodeAtPoint callback is async (native round-trip).
+    setTimeout(() => finish(null), 600)
+  })
 }
 
-function displayNameOf(f: AnyFiber): string {
-  return displayNameOfRaw(f.type ?? f.elementType) ?? '<?>'
-}
+// ─── source frames ──────────────────────────────────────────────────────
 
-function displayNameOfRaw(type: any): string | null {
-  if (!type) return null
-  if (typeof type === 'string') return type
-  if (type.displayName) return type.displayName
-  if (type.name) return type.name
-  // forwardRef / memo wrappers
-  if (type.render?.displayName) return type.render.displayName
-  if (type.render?.name) return type.render.name
-  if (type.type?.displayName) return type.type.displayName
-  if (type.type?.name) return type.type.name
+function asFiber(x: unknown): AnyFiber | null {
+  if (!x || typeof x !== 'object') return null
+  const f = x as AnyFiber
+  // Heuristic: a fiber has at least one of these internal fields.
+  if ('_debugStack' in f || '_debugOwner' in f || 'memoizedProps' in f || 'tag' in f) return f
   return null
 }
 
-// ─── _debugStack parsing ────────────────────────────────────────────────
+/**
+ * Gather candidate source frames, best-first:
+ *   1. The touched fiber's own `_debugStack` (owner call site = frame 1).
+ *   2. Its `_debugOwner`'s `_debugStack` (one level up), in case the leaf is
+ *      a host element with no useful stack.
+ *   3. The inspector's `componentStack` string.
+ */
+function collectSourceFrames(fiber: AnyFiber | null, componentStack?: string): BundledFrame[] {
+  const out: BundledFrame[] = []
+  const pushFrom = (err: Error | null | undefined, skipFirst: boolean) => {
+    const fr = parseDebugStack(err)
+    // frame 0 is usually react-internal ("anonymous"); the owner call site is
+    // frame 1. Keep frame 1 onward, then frame 0 as a last resort.
+    if (skipFirst && fr.length > 1) out.push(...fr.slice(1), fr[0]!)
+    else out.push(...fr)
+  }
+  if (fiber?._debugStack) pushFrom(fiber._debugStack, true)
+  if (fiber?._debugOwner?._debugStack) pushFrom(fiber._debugOwner._debugStack, true)
+  if (componentStack) pushFrom({ stack: componentStack } as Error, false)
+  return out
+}
 
-// Match V8-style "    at <method> (<url>:<line>:<col>)" frames. The URL may
-// itself contain `:` (e.g. `http://localhost:8081/...`) so we rely on the
-// trailing `:<digits>:<digits>)` to anchor where the URL ends.
+// ─── name helpers ─────────────────────────────────────────────────────────
+
+const INTERNAL_NAME_RE =
+  /^(?:_?LogBox|DebuggingOverlay|AppContainer|RCT|View$|Text$|ScrollView$|Provider$|Consumer$|.*Provider$|.*Context$|withDevTools|ForwardRef|Memo|Suspense|Fragment)/
+const ANON_RE = /^anonymous$|^Object$|^<\?>$|^unknown$/
+
+function isUserComponentName(name: string): boolean {
+  if (!name) return false
+  if (ANON_RE.test(name)) return false
+  if (INTERNAL_NAME_RE.test(name)) return false
+  return /^[A-Z]/.test(name)
+}
+
+// ─── _debugStack parsing (unchanged) ──────────────────────────────────────
+
 const FRAME_PAREN_RE = /^\s*at\s+(\S+)\s+\((.+):(\d+):(\d+)\)\s*$/
-// Fallback for frames without parens: "    at <url>:<line>:<col>"
 const FRAME_NO_PAREN_RE = /^\s*at\s+(.+):(\d+):(\d+)\s*$/
 
 export function parseDebugStack(err: Error | null | undefined): BundledFrame[] {
@@ -298,9 +305,7 @@ export function parseDebugStack(err: Error | null | undefined): BundledFrame[] {
 
   const frames: BundledFrame[] = []
   for (const line of stack.split('\n')) {
-    // Skip header line ("Error: react-stack-top-frame") which has no `at `.
     if (!/^\s*at\s/.test(line)) continue
-
     const mParen = FRAME_PAREN_RE.exec(line)
     if (mParen) {
       const [, methodName, file, lineStr, colStr] = mParen
@@ -318,18 +323,14 @@ export function parseDebugStack(err: Error | null | undefined): BundledFrame[] {
     if (mNoParen) {
       const [, file, lineStr, colStr] = mNoParen
       if (file && lineStr && colStr) {
-        frames.push({
-          file,
-          lineNumber: Number(lineStr),
-          column: Number(colStr),
-        })
+        frames.push({ file, lineNumber: Number(lineStr), column: Number(colStr) })
       }
     }
   }
   return frames
 }
 
-// ─── props serialization ────────────────────────────────────────────────
+// ─── props serialization (unchanged) ──────────────────────────────────────
 
 function shallowSafeProps(
   props: Record<string, unknown> | null | undefined,
@@ -354,9 +355,7 @@ function serializeValue(v: unknown, depth = 0): unknown {
   if (t === 'bigint') return (v as bigint).toString() + 'n'
   if (t !== 'object') return v
   if (depth > 1) return '[…]'
-  if (Array.isArray(v)) {
-    return v.slice(0, 8).map((x) => serializeValue(x, depth + 1))
-  }
+  if (Array.isArray(v)) return v.slice(0, 8).map((x) => serializeValue(x, depth + 1))
   const out: Record<string, unknown> = {}
   let count = 0
   for (const [k, val] of Object.entries(v as Record<string, unknown>)) {

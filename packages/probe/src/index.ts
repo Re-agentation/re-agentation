@@ -12,4 +12,8 @@ export type { AgentationProbeProps, ProbePosition } from './AgentationProbe'
 
 export { resolveMetroHost } from './probe-transport'
 
+// Advanced / testing: programmatic capture at a screen coordinate.
+export { captureAt } from './fiber-walk'
+export type { CaptureResult, TapHit, FiberWalkOptions } from './fiber-walk'
+
 export type { BatchItem, BatchPayload, CapturedElement, SourceLocation } from './types'
