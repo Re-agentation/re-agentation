@@ -1,0 +1,30 @@
+{
+  "name": "rn-cli-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minimal bare React Native CLI (0.76+) example app demonstrating Re-agentation integration.",
+  "scripts": {
+    "start": "react-native start",
+    "ios": "react-native run-ios",
+    "android": "react-native run-android",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@re-agentation/metro": "workspace:*",
+    "@re-agentation/probe": "workspace:*",
+    "react": "18.3.1",
+    "react-native": "0.76.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.27.0",
+    "@babel/preset-env": "^7.27.0",
+    "@babel/runtime": "^7.27.0",
+    "@react-native-community/cli": "^15.0.0",
+    "@react-native/babel-preset": "0.76.5",
+    "@react-native/metro-config": "0.76.5",
+    "@react-native/typescript-config": "0.76.5",
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.3"
+  }
+}

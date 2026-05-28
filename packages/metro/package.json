@@ -1,0 +1,61 @@
+{
+  "name": "@re-agentation/metro",
+  "version": "0.0.0",
+  "description": "Metro custom middleware that receives Re-agentation annotation batches from the running RN app and queues them for the MCP server.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/re-agentation/re-agentation.git",
+    "directory": "packages/metro"
+  },
+  "homepage": "https://github.com/re-agentation/re-agentation/tree/main/packages/metro",
+  "bugs": "https://github.com/re-agentation/re-agentation/issues",
+  "keywords": [
+    "react-native",
+    "metro",
+    "middleware",
+    "dev-tools",
+    "agentation"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "peerDependencies": {
+    "metro-config": ">=0.81.0"
+  },
+  "peerDependenciesMeta": {
+    "metro-config": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

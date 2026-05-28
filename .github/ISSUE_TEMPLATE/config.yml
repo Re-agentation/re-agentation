@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Original Agentation (web / DOM)
+    url: https://github.com/benjitaylor/agentation
+    about: 'Re-agentation only supports React Native. For Next.js / Vite / browser apps, use the original Agentation.'

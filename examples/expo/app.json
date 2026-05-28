@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "re-agentation-expo-example",
+    "slug": "re-agentation-expo-example",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.reagentation.example"
+    },
+    "android": {
+      "package": "dev.reagentation.example"
+    }
+  }
+}

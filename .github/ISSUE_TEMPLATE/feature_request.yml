@@ -1,0 +1,20 @@
+name: Feature request
+description: Something Re-agentation should do that it currently doesn't.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Focus on the user-facing problem, not your proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What do you propose?
+      description: Optional. Sketch an API or UX if you have one in mind.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What workarounds have you tried?
