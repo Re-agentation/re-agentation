@@ -61,15 +61,19 @@ function parseFlag(name: string): string | undefined {
   return undefined
 }
 
-// Bin entry: detect direct execution.
+// Bin entry: detect direct execution. The published bin is the CJS build,
+// so `require.main === module` is the primary check — it is symlink-safe
+// (Node resolves require.main to the real entry module), unlike comparing
+// import.meta.url to process.argv[1] which breaks when launched via a global
+// bin symlink or `npx` shim.
 const isMain = (() => {
+  if (typeof require !== 'undefined' && typeof module !== 'undefined') {
+    return require.main === module
+  }
   try {
-    // ESM
     return (import.meta as ImportMeta & { url?: string })?.url === `file://${process.argv[1]}`
   } catch {
-    // CJS
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return typeof require !== 'undefined' && require.main === module
+    return false
   }
 })()
 

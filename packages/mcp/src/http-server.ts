@@ -114,12 +114,16 @@ function parseFlag(name: string): string | undefined {
   return undefined
 }
 
+// See server.ts for why require.main === module is the primary check
+// (symlink-safe for global bins / npx shims).
 const isMain = (() => {
+  if (typeof require !== 'undefined' && typeof module !== 'undefined') {
+    return require.main === module
+  }
   try {
     return (import.meta as ImportMeta & { url?: string })?.url === `file://${process.argv[1]}`
   } catch {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return typeof require !== 'undefined' && require.main === module
+    return false
   }
 })()
 
