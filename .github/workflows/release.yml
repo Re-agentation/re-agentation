@@ -17,6 +17,11 @@ jobs:
   release:
     name: Changesets release / publish
     runs-on: ubuntu-latest
+    # Stays off until you're ready to publish. To enable:
+    #   1. Add the NPM_TOKEN repo secret.
+    #   2. Set repo variable RELEASE_ENABLED=true
+    #      (gh variable set RELEASE_ENABLED --body true).
+    if: ${{ vars.RELEASE_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
