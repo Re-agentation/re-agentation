@@ -85,7 +85,10 @@ export function HistoryDetail({ entry, metroHost, onBack, onChanged }: HistoryDe
 
   const onUndo = async () => {
     if (!canUndo) {
-      Alert.alert('되돌릴 수 없는 항목', '예전 형식이라 안전하게 되돌릴 수 없습니다. 새로 만든 항목은 정상 Undo됩니다.')
+      Alert.alert(
+        '되돌릴 수 없는 항목',
+        '예전 형식이라 안전하게 되돌릴 수 없습니다. 새로 만든 항목은 정상 Undo됩니다.',
+      )
       return
     }
     setBusy(true)
@@ -166,7 +169,11 @@ export function HistoryDetail({ entry, metroHost, onBack, onChanged }: HistoryDe
 
       <View style={styles.footer}>
         {isUndone ? (
-          <Pressable style={[styles.primary, styles.redo, busy && styles.disabled]} disabled={busy} onPress={onRedo}>
+          <Pressable
+            style={[styles.primary, styles.redo, busy && styles.disabled]}
+            disabled={busy}
+            onPress={onRedo}
+          >
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
@@ -187,12 +194,18 @@ export function HistoryDetail({ entry, metroHost, onBack, onChanged }: HistoryDe
             ) : (
               <>
                 <UndoIcon size={18} color="#fff" />
-                <Text style={styles.primaryText}>{canUndo ? 'Undo this change' : 'Undo unavailable (legacy)'}</Text>
+                <Text style={styles.primaryText}>
+                  {canUndo ? 'Undo this change' : 'Undo unavailable (legacy)'}
+                </Text>
               </>
             )}
           </Pressable>
         )}
-        <Pressable style={[styles.deleteBtn, busy && styles.disabled]} disabled={busy} onPress={() => setConfirmDelete(true)}>
+        <Pressable
+          style={[styles.deleteBtn, busy && styles.disabled]}
+          disabled={busy}
+          onPress={() => setConfirmDelete(true)}
+        >
           <TrashIcon size={18} color="#ef4444" />
         </Pressable>
       </View>

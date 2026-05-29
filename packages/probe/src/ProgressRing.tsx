@@ -44,7 +44,11 @@ export function ProgressRing({ size = 44, done, total }: ProgressRingProps) {
 
   const center = (
     <View style={styles.center} pointerEvents="none">
-      {allDone ? <CheckIcon size={18} color="#22c55e" /> : <Text style={styles.count}>{`${done}/${total}`}</Text>}
+      {allDone ? (
+        <CheckIcon size={18} color="#22c55e" />
+      ) : (
+        <Text style={styles.count}>{`${done}/${total}`}</Text>
+      )}
     </View>
   )
 
@@ -52,7 +56,14 @@ export function ProgressRing({ size = 44, done, total }: ProgressRingProps) {
     <View style={{ width: size, height: size }}>
       <Animated.View style={!allDone ? { transform: [{ rotate }] } : undefined}>
         <Svg width={size} height={size}>
-          <Circle cx={size / 2} cy={size / 2} r={r} stroke="#3f3f46" strokeWidth={stroke} fill="none" />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke="#3f3f46"
+            strokeWidth={stroke}
+            fill="none"
+          />
           <Circle
             cx={size / 2}
             cy={size / 2}

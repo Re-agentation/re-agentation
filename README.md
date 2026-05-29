@@ -28,11 +28,11 @@ It's [Agentation](https://github.com/benjitaylor/agentation) — but for **React
 
 ## Why this exists
 
-We're living through the strangest moment in product development. AI can scaffold a feature in seconds, refactor a module while you blink, and write tests you'd have procrastinated on for a month. And yet — the part where a human looks at the actual screen and says *"no, **that** one, make **it** warmer"* is still stuck in 2015.
+We're living through the strangest moment in product development. AI can scaffold a feature in seconds, refactor a module while you blink, and write tests you'd have procrastinated on for a month. And yet — the part where a human looks at the actual screen and says _"no, **that** one, make **it** warmer"_ is still stuck in 2015.
 
-The design-to-code handoff has quietly become **the** bottleneck. Not the coding. The *pointing*. The translation between "I can see exactly what's wrong" and "here is the file, line, and token that encodes what's wrong." We've automated the hard part and left the obvious part manual.
+The design-to-code handoff has quietly become **the** bottleneck. Not the coding. The _pointing_. The translation between "I can see exactly what's wrong" and "here is the file, line, and token that encodes what's wrong." We've automated the hard part and left the obvious part manual.
 
-I saw [Agentation](https://github.com/benjitaylor/agentation) by [Benji Taylor](https://github.com/benjitaylor) and something clicked — *that's* the missing interface for the AI era: point at the live UI, talk to it, let the agent do the plumbing. It worked beautifully for the web. React Native — where so many of us actually ship — had nothing like it. So I built it.
+I saw [Agentation](https://github.com/benjitaylor/agentation) by [Benji Taylor](https://github.com/benjitaylor) and something clicked — _that's_ the missing interface for the AI era: point at the live UI, talk to it, let the agent do the plumbing. It worked beautifully for the web. React Native — where so many of us actually ship — had nothing like it. So I built it.
 
 The hope is small and large at once: that product teams stop losing their best ideas in the gap between "I see it" and "I can describe where it lives," and that we build a smarter, calmer, more human development culture on top of these new AI tools — one where the machine handles the lookup and the person handles the taste.
 
@@ -105,8 +105,8 @@ module.exports = withReagentation(getDefaultConfig(__dirname))
 // .mcp.json  (or your Claude Code MCP config)
 {
   "mcpServers": {
-    "re-agentation": { "command": "npx", "args": ["re-agentation-mcp"] }
-  }
+    "re-agentation": { "command": "npx", "args": ["re-agentation-mcp"] },
+  },
 }
 ```
 
@@ -118,7 +118,7 @@ npx re-agentation-apply
 
 That's it. `pnpm start` your app → tap the floating dot → tap a component → describe the change → **Send**. The watcher runs Claude Code for you and your simulator repaints. No tab-switching required.
 
-> **Don't want auto-apply?** Skip step 4 and just say *"re-agentation, process my batch"* to Claude Code directly — it'll pull the batch over MCP and edit the files itself.
+> **Don't want auto-apply?** Skip step 4 and just say _"re-agentation, process my batch"_ to Claude Code directly — it'll pull the batch over MCP and edit the files itself.
 
 ---
 
@@ -132,11 +132,11 @@ A draggable dot lives in the corner of your running app (dev builds only). Drag 
 
 ### 2. Tap → comment
 
-Armed? Tap any component on screen. Re-agentation resolves **exactly which component you hit** and **the precise source file + line** (more on that black magic [below](#how-it-works)), then slides up a bottom sheet. Type what you want in plain language — *"make this bigger,"* *"use the brand navy,"* *"add a tiger"* — and choose **Add to batch** or **Send now**.
+Armed? Tap any component on screen. Re-agentation resolves **exactly which component you hit** and **the precise source file + line** (more on that black magic [below](#how-it-works)), then slides up a bottom sheet. Type what you want in plain language — _"make this bigger,"_ _"use the brand navy,"_ _"add a tiger"_ — and choose **Add to batch** or **Send now**.
 
 <p align="center"><img src="./.github/assets/comment-sheet.png" alt="The comment bottom sheet showing the captured component name, its source path, and a text field" width="300" /></p>
 
-> Tapping an empty area works too — Re-agentation drops a pin there so you can say *"put an image in this blank space."*
+> Tapping an empty area works too — Re-agentation drops a pin there so you can say _"put an image in this blank space."_
 
 ### 3. Batch up to 3 changes
 
@@ -146,17 +146,17 @@ Stack several annotations into one batch (capped at 3, because focused diffs app
 
 ### 4. Send → Claude edits live
 
-Hit **Send** and the sheet turns into a live progress view — each item shows *Queued → Editing… → Done* as Claude works through them. The instant a file is saved, your simulator Fast-Refreshes. New asset or import? Re-agentation does a clean full reload instead, so you **never** get the dreaded red error screen mid-edit.
+Hit **Send** and the sheet turns into a live progress view — each item shows _Queued → Editing… → Done_ as Claude works through them. The instant a file is saved, your simulator Fast-Refreshes. New asset or import? Re-agentation does a clean full reload instead, so you **never** get the dreaded red error screen mid-edit.
 
 <p align="center"><img src="./.github/assets/applying.png" alt="The batch sheet in live-progress mode with per-item progress bars" width="300" /></p>
 
 ### 5. The magic-dust apply effect
 
-While a component is being transformed, a glowing emitter orbits its border and sprays **gold-and-purple magic dust** — particles that launch with the emitter's motion, arc down under gravity, and fade out. It's how you *feel* the change landing.
+While a component is being transformed, a glowing emitter orbits its border and sprays **gold-and-purple magic dust** — particles that launch with the emitter's motion, arc down under gravity, and fade out. It's how you _feel_ the change landing.
 
 <p align="center"><img src="./.github/assets/shimmer.png" alt="A component wrapped in a purple-and-gold shimmering border with falling particles" width="300" /></p>
 
-*(Is it strictly necessary? No. Does it make a 4-second wait delightful instead of anxious? Absolutely.)*
+_(Is it strictly necessary? No. Does it make a 4-second wait delightful instead of anxious? Absolutely.)_
 
 ### 6. History: search, filter, before/after
 
@@ -181,7 +181,7 @@ Open any entry for a swipeable **before/after carousel** (with a peek of the nex
 
 ### 8. Attach images & video
 
-In the comment sheet, attach reference images or video from your simulator's gallery. Re-agentation hands them to Claude (videos are sampled into representative frames via `ffmpeg`) so you can say *"make it look like this"* and mean it.
+In the comment sheet, attach reference images or video from your simulator's gallery. Re-agentation hands them to Claude (videos are sampled into representative frames via `ffmpeg`) so you can say _"make it look like this"_ and mean it.
 
 ---
 
@@ -206,9 +206,9 @@ Three small packages, one tidy loop, zero cloud.
 
 **The capture trick.** When you tap, the probe asks React DevTools' renderer (`getInspectorDataForViewAtPoint`) what's under your finger. On the New Architecture (Fabric) the public instance hides at `stateNode.canonical.publicInstance`, so we dig it out, then walk the fiber's `_debugStack` (React 19's source channel) and run it through Metro's `/symbolicate` endpoint to get an exact `app/.../File.tsx:line:col`. Library frames inside `node_modules` are discarded so you always land on **your** code (and if nothing resolves, Claude just greps by component name).
 
-**The apply loop.** The watcher polls Metro's queue. For each item it: snapshots the working tree (`git stash create`) for undo, takes a *before* screenshot (`xcrun simctl io screenshot`), runs `claude -p --permission-mode acceptEdits` against the resolved file, then acks the moment **either** the file changes **or** Claude exits (whichever comes first — so a no-op never stalls the queue). If the edit added or removed an import/asset it triggers a clean reload; otherwise Fast Refresh handles it. Finally it takes an *after* screenshot and writes a history entry.
+**The apply loop.** The watcher polls Metro's queue. For each item it: snapshots the working tree (`git stash create`) for undo, takes a _before_ screenshot (`xcrun simctl io screenshot`), runs `claude -p --permission-mode acceptEdits` against the resolved file, then acks the moment **either** the file changes **or** Claude exits (whichever comes first — so a no-op never stalls the queue). If the edit added or removed an import/asset it triggers a clean reload; otherwise Fast Refresh handles it. Finally it takes an _after_ screenshot and writes a history entry.
 
-**Undo that actually works.** Because we snapshot the whole tree before editing, undo restores the original bytes of *every* file the edit changed — and `redo` re-applies them. New files get deleted on undo and recreated on redo.
+**Undo that actually works.** Because we snapshot the whole tree before editing, undo restores the original bytes of _every_ file the edit changed — and `redo` re-applies them. New files get deleted on undo and recreated on redo.
 
 For the full design rationale, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -216,15 +216,15 @@ For the full design rationale, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Compatibility
 
-| Surface      | Supported                                                          |
-| ------------ | ------------------------------------------------------------------ |
-| React Native | 0.76+                                                              |
-| Architecture | New Architecture (Fabric)                                          |
-| React        | 18 & 19                                                            |
-| Setup        | Bare RN CLI + Expo (SDK 52+)                                       |
-| JS engine    | Hermes & JSC                                                       |
-| Platform     | iOS Simulator, Android Emulator (real device works with LAN host)  |
-| Agent        | Claude Code (via MCP) + the `re-agentation-apply` watcher          |
+| Surface      | Supported                                                         |
+| ------------ | ----------------------------------------------------------------- |
+| React Native | 0.76+                                                             |
+| Architecture | New Architecture (Fabric)                                         |
+| React        | 18 & 19                                                           |
+| Setup        | Bare RN CLI + Expo (SDK 52+)                                      |
+| JS engine    | Hermes & JSC                                                      |
+| Platform     | iOS Simulator, Android Emulator (real device works with LAN host) |
+| Agent        | Claude Code (via MCP) + the `re-agentation-apply` watcher         |
 
 Verified end-to-end on **RN 0.85.3 + React 19.2.3 + Hermes + Fabric** (iOS Simulator).
 
@@ -255,10 +255,10 @@ The MCP server and watcher are local CLI tools you run by hand — never part of
 
 ## Packages
 
-| Package                                  | What it does                                                                |
-| ---------------------------------------- | --------------------------------------------------------------------------- |
-| [`@re-agentation/probe`](packages/probe) | The in-app RN overlay — probe, capture, comment/batch UI, history, FX       |
-| [`@re-agentation/metro`](packages/metro) | Metro middleware — batch queue + history/undo/media stores + endpoints      |
+| Package                                  | What it does                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| [`@re-agentation/probe`](packages/probe) | The in-app RN overlay — probe, capture, comment/batch UI, history, FX        |
+| [`@re-agentation/metro`](packages/metro) | Metro middleware — batch queue + history/undo/media stores + endpoints       |
 | [`@re-agentation/mcp`](packages/mcp)     | MCP server (stdio + HTTP/SSE) + the `re-agentation-apply` auto-apply watcher |
 
 ---
@@ -281,7 +281,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and our [Code of Conduct](./CODE_OF_CON
 
 ## About the author
 
-Built by **Jaehwa Jung** — a product manager with 15+ years shipping products across Korea and the US, currently based in **Seoul, South Korea**. I've spent my career on the seam between people who can *see* what a product should be and people who can *build* it, and Re-agentation is my attempt to make that seam a little less painful in the AI era.
+Built by **Jaehwa Jung** — a product manager with 15+ years shipping products across Korea and the US, currently based in **Seoul, South Korea**. I've spent my career on the seam between people who can _see_ what a product should be and people who can _build_ it, and Re-agentation is my attempt to make that seam a little less painful in the AI era.
 
 Questions, ideas, or just want to say hi?
 

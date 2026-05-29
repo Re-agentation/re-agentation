@@ -147,7 +147,8 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
       const meta = await historyStore.getMeta(id)
       if (!meta) return notFound(res)
       const result = await undoStore.restore(meta.batchId, meta.itemId, 'redo')
-      if (result.restored > 0) await historyStore.markStatus(id, 'applied', new Date().toISOString())
+      if (result.restored > 0)
+        await historyStore.markStatus(id, 'applied', new Date().toISOString())
       log(`history redo ${id} → re-applied ${result.restored} file(s)`)
       return json(res, 200, { ...result, route: meta.route ?? null })
     }
@@ -324,7 +325,9 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
         return json(res, 400, { error: 'invalid', message: 'expected { batchId, itemId? }' })
       }
       const result = await undoStore.restore(body.batchId, body.itemId)
-      log(`undo ${body.batchId}${body.itemId ? `/${body.itemId}` : ''} → ${result.restored} file(s)`)
+      log(
+        `undo ${body.batchId}${body.itemId ? `/${body.itemId}` : ''} → ${result.restored} file(s)`,
+      )
       return json(res, 200, result)
     } catch (err) {
       if (err instanceof BodyParseError) return json(res, 400, { error: 'bad_json' })
@@ -353,7 +356,8 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
       log(`media saved ${saved.file} for ${body.batchId}`)
       return json(res, 200, { ok: true, url: saved.url, file: saved.file })
     } catch (err) {
-      if (err instanceof BodyTooLargeError) return json(res, 413, { error: 'too_large', limit: err.limit })
+      if (err instanceof BodyTooLargeError)
+        return json(res, 413, { error: 'too_large', limit: err.limit })
       if (err instanceof BodyParseError) return json(res, 400, { error: 'bad_json' })
       throw err
     }

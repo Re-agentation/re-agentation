@@ -239,10 +239,21 @@ export async function undoHistory(
   const host = resolveMetroHost(opts.hostOverride)
   const fetchImpl = opts.fetchImpl ?? fetch
   try {
-    const res = await fetchImpl(`${host}/__agentation__/history/${entryId}/undo`, { method: 'POST' })
+    const res = await fetchImpl(`${host}/__agentation__/history/${entryId}/undo`, {
+      method: 'POST',
+    })
     if (!res.ok) return { ok: false, restored: 0 }
-    const data = (await res.json()) as { route?: string | null; restored?: number; legacy?: boolean }
-    return { ok: true, restored: data.restored ?? 0, legacy: data.legacy, route: data.route ?? null }
+    const data = (await res.json()) as {
+      route?: string | null
+      restored?: number
+      legacy?: boolean
+    }
+    return {
+      ok: true,
+      restored: data.restored ?? 0,
+      legacy: data.legacy,
+      route: data.route ?? null,
+    }
   } catch {
     return { ok: false, restored: 0 }
   }
@@ -256,7 +267,9 @@ export async function redoHistory(
   const host = resolveMetroHost(opts.hostOverride)
   const fetchImpl = opts.fetchImpl ?? fetch
   try {
-    const res = await fetchImpl(`${host}/__agentation__/history/${entryId}/redo`, { method: 'POST' })
+    const res = await fetchImpl(`${host}/__agentation__/history/${entryId}/redo`, {
+      method: 'POST',
+    })
     if (!res.ok) return { ok: false, restored: 0 }
     const data = (await res.json()) as { route?: string | null; restored?: number }
     return { ok: true, restored: data.restored ?? 0, route: data.route ?? null }

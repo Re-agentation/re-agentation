@@ -17,7 +17,13 @@ function make(path: string) {
   return function Icon({ size = 18, color = '#666' }: IconProps) {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <Path d={path} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <Path
+          d={path}
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </Svg>
     )
   }
@@ -39,7 +45,13 @@ export const CloseIcon = make('M18 6 6 18 M6 6l12 12')
 export function CheckIcon({ size = 14, color = '#fff' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M20 6 9 17l-5-5" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Path
+        d="M20 6 9 17l-5-5"
+        stroke={color}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   )
 }

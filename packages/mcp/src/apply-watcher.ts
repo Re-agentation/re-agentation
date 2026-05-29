@@ -477,7 +477,8 @@ export async function runApplyWatcher(opts: ApplyWatcherOptions = {}): Promise<v
 
   console.log(`[re-agentation-apply] watching ${metroHost} (cwd: ${cwd})`)
   console.log(`[re-agentation-apply] simulator: ${udid ?? 'none (history screenshots disabled)'}`)
-  if (!which('ffmpeg')) console.log('[re-agentation-apply] ffmpeg not found — video frames disabled')
+  if (!which('ffmpeg'))
+    console.log('[re-agentation-apply] ffmpeg not found — video frames disabled')
   console.log('[re-agentation-apply] Send in the app → changes auto-apply. Ctrl+C to stop.')
 
   type Batch = { batchId: string; payload?: { items?: Annotation[] } }

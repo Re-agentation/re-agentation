@@ -79,7 +79,12 @@ export function ShimmerBorder({ rect, active }: ShimmerBorderProps) {
   useEffect(() => {
     if (!active || w <= 0 || h <= 0) return
     const orbitAnim = Animated.loop(
-      Animated.timing(orbit, { toValue: 1, duration: 2600, easing: Easing.linear, useNativeDriver: false }),
+      Animated.timing(orbit, {
+        toValue: 1,
+        duration: 2600,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }),
     )
     const glowAnim = Animated.loop(
       Animated.sequence([
@@ -159,7 +164,15 @@ export function ShimmerBorder({ rect, active }: ShimmerBorderProps) {
   return (
     <Animated.View
       pointerEvents="none"
-      style={{ position: 'absolute', left: rect.x, top: rect.y, width: w, height: h, opacity: breathe, transform: [{ scale }] }}
+      style={{
+        position: 'absolute',
+        left: rect.x,
+        top: rect.y,
+        width: w,
+        height: h,
+        opacity: breathe,
+        transform: [{ scale }],
+      }}
     >
       {layer(PURPLE, purpleOpacity)}
       {layer(GOLD, goldOpacity)}
@@ -172,7 +185,10 @@ export function ShimmerBorder({ rect, active }: ShimmerBorderProps) {
           p.oy,
           Animated.add(Animated.multiply(p.vy, p.anim), Animated.multiply(a2, GHALF)),
         )
-        const opacity = p.anim.interpolate({ inputRange: [0, 0.12, 0.7, 1], outputRange: [0, 1, 0.8, 0] })
+        const opacity = p.anim.interpolate({
+          inputRange: [0, 0.12, 0.7, 1],
+          outputRange: [0, 1, 0.8, 0],
+        })
         const pscale = p.anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] })
         return (
           <Animated.View

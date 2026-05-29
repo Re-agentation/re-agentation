@@ -238,7 +238,9 @@ function AgentationProbeInner({
       // discarded with a console note rather than silently dropped later.
       if (!sendNow && items.length >= MAX_BATCH) {
         // eslint-disable-next-line no-console
-        console.warn(`[re-agentation] batch is full (max ${MAX_BATCH}) — send or remove an item first`)
+        console.warn(
+          `[re-agentation] batch is full (max ${MAX_BATCH}) — send or remove an item first`,
+        )
         setCaptured(null)
         setPhase('reviewing')
         return
@@ -614,7 +616,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   trayText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  trayProgress: { backgroundColor: '#1a1a1a', paddingHorizontal: 0, width: 48, minWidth: 48, height: 48, borderRadius: 24 },
+  trayProgress: {
+    backgroundColor: '#1a1a1a',
+    paddingHorizontal: 0,
+    width: 48,
+    minWidth: 48,
+    height: 48,
+    borderRadius: 24,
+  },
   historyBtn: {
     position: 'absolute',
     top: 0,

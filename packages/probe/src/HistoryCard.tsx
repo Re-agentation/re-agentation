@@ -5,7 +5,12 @@
  */
 
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
-import { entryStatus, historyImageUrl, type EntryStatus, type HistoryEntry } from './probe-transport'
+import {
+  entryStatus,
+  historyImageUrl,
+  type EntryStatus,
+  type HistoryEntry,
+} from './probe-transport'
 import { CheckIcon } from './icons'
 
 const BADGE: Record<EntryStatus, { label: string; bg: string; fg: string } | null> = {

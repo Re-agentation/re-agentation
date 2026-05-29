@@ -50,9 +50,7 @@ export function BatchTraySheet({
 }: BatchTraySheetProps) {
   const { width, height } = useWindowDimensions()
   const progressMode = !!statusMap
-  const doneCount = progressMode
-    ? items.filter((it) => statusMap![it.id] === 'done').length
-    : 0
+  const doneCount = progressMode ? items.filter((it) => statusMap![it.id] === 'done').length : 0
   const allDone = progressMode && items.length > 0 && doneCount === items.length
 
   return (
@@ -60,7 +58,11 @@ export function BatchTraySheet({
       <Pressable style={styles.sheet} onPress={() => {}}>
         <View style={styles.header}>
           <Text style={styles.title}>
-            {progressMode ? (allDone ? 'All changes applied' : 'Applying changes…') : 'Pending annotations'}
+            {progressMode
+              ? allDone
+                ? 'All changes applied'
+                : 'Applying changes…'
+              : 'Pending annotations'}
           </Text>
           {!progressMode && (
             <Pressable onPress={onClose} hitSlop={10}>
@@ -95,7 +97,9 @@ export function BatchTraySheet({
                     </Text>
                     {progressMode && (
                       <View style={styles.track}>
-                        <View style={[styles.fill, { width: bar.pct, backgroundColor: bar.color }]} />
+                        <View
+                          style={[styles.fill, { width: bar.pct, backgroundColor: bar.color }]}
+                        />
                       </View>
                     )}
                   </View>
@@ -106,7 +110,11 @@ export function BatchTraySheet({
                       <Pressable onPress={() => onEdit(item.id)} hitSlop={6} style={styles.iconBtn}>
                         <PencilIcon size={17} color="#71717a" />
                       </Pressable>
-                      <Pressable onPress={() => onDelete(item.id)} hitSlop={6} style={styles.iconBtn}>
+                      <Pressable
+                        onPress={() => onDelete(item.id)}
+                        hitSlop={6}
+                        style={styles.iconBtn}
+                      >
                         <TrashIcon size={17} color="#ef4444" />
                       </Pressable>
                     </View>
@@ -144,7 +152,9 @@ export function BatchTraySheet({
             disabled={items.length === 0 || sending}
             onPress={onSend}
           >
-            <Text style={styles.sendBtnText}>{sending ? 'Sending…' : `Send (${items.length})`}</Text>
+            <Text style={styles.sendBtnText}>
+              {sending ? 'Sending…' : `Send (${items.length})`}
+            </Text>
           </Pressable>
         )}
       </Pressable>
@@ -185,7 +195,14 @@ const styles = StyleSheet.create({
   list: { maxHeight: 380 },
   listContent: { gap: 10 },
   empty: { color: '#999', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fafafa', borderRadius: 10, padding: 10 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fafafa',
+    borderRadius: 10,
+    padding: 10,
+  },
   rowBadge: {
     width: 24,
     height: 24,
