@@ -1,6 +1,6 @@
 {
   "name": "@re-agentation/mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "MCP server that exposes Re-agentation annotation batches to Claude Code / Claude Desktop (stdio) and to Cursor / Windsurf / other clients (HTTP+SSE).",
   "license": "MIT",
   "repository": {
