@@ -1,8 +1,12 @@
 # @re-agentation/metro
 
-Metro custom middleware. Receives annotation batches from `@re-agentation/probe`, queues them on disk, exposes them to `@re-agentation/mcp`.
+> Metro dev-server middleware for [**Re-agentation**](https://github.com/Re-agentation/re-agentation) — receives annotation batches from the probe and exposes the queue, change history, undo/redo stash, and media uploads to the apply watcher / MCP server.
 
-Part of [Re-agentation](https://github.com/re-agentation/re-agentation).
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Re-agentation/re-agentation/main/.github/assets/hero.gif" alt="Point at a component, describe the change, watch it transform" width="320" />
+</p>
+
+👉 **See the [root README](https://github.com/Re-agentation/re-agentation#readme) for the full story, architecture, and setup.**
 
 ## Install
 
@@ -10,7 +14,7 @@ Part of [Re-agentation](https://github.com/re-agentation/re-agentation).
 pnpm add -D @re-agentation/metro
 ```
 
-## Setup
+## Use
 
 ```js
 // metro.config.js
@@ -20,38 +24,19 @@ const { getDefaultConfig } = require('@react-native/metro-config')
 module.exports = withReagentation(getDefaultConfig(__dirname))
 ```
 
-For Expo:
+This mounts endpoints under `/__agentation__/` on the Metro dev server:
 
-```js
-// metro.config.js
-const { withReagentation } = require('@re-agentation/metro')
-const { getDefaultConfig } = require('expo/metro-config')
+- `POST /batch` — enqueue a batch from the probe
+- `GET /status` · `GET /queue/recent` · `POST /ack` · `POST /cancel`
+- `GET /history` (`limit` · `offset` · `q` · `status`) + per-entry `undo` / `redo` / `DELETE`
+- `POST /media` + media / before-after screenshot serving
 
-module.exports = withReagentation(getDefaultConfig(__dirname))
-```
+All state lives on your machine under `.agentation/` — zero telemetry, nothing uploaded. (Add `.agentation/` to `.gitignore`.)
 
-That's it. The middleware only runs when `NODE_ENV !== 'production'`.
+## Production safety
 
-## Endpoints
-
-All under `/__agentation__/`:
-
-| Method | Path                       | Purpose                                               |
-| ------ | -------------------------- | ----------------------------------------------------- |
-| `POST` | `/batch`                   | Receive a `BatchPayload` from probe, append to queue. |
-| `POST` | `/snapshot`                | Receive a base64 PNG, store, return URL.              |
-| `GET`  | `/queue/recent?since=<ts>` | Return batches added after `since`.                   |
-| `POST` | `/ack`                     | Mark `{ batchId, itemIds? }` as processed.            |
-| `GET`  | `/health`                  | Liveness.                                             |
-
-## Storage
-
-Queue: `<projectRoot>/.agentation/queue.jsonl` (one batch per line, JSONL).
-Archive: `<projectRoot>/.agentation/archive/<date>.jsonl` (after ack).
-Snapshots: `<projectRoot>/.agentation/snapshots/<batchId>/<itemId>.png`.
-
-Add `.agentation/` to your `.gitignore`.
+The middleware only runs inside the Metro **dev server**. A release build ships a static bundle with no Metro, so none of this exists in production.
 
 ## License
 
-MIT
+MIT © Jaehwa Jung & Re-agentation contributors
