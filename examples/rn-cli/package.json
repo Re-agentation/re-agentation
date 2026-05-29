@@ -22,7 +22,7 @@
     "@babel/runtime": "^7.27.0",
     "@react-native-community/cli": "^15.0.0",
     "@react-native/babel-preset": "0.76.5",
-    "@react-native/metro-config": "0.76.5",
+    "@react-native/metro-config": "0.85.3",
     "@react-native/typescript-config": "0.76.5",
     "@types/react": "^18.3.12",
     "typescript": "^5.7.3"
