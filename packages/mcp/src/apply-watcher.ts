@@ -435,6 +435,15 @@ async function applyItem(
     }
   }
 
+  // If the edit changed package.json, Claude likely added a new dependency.
+  // A reload can't pick up a freshly-installed (or not-yet-installed) module —
+  // tell the user to install + restart Metro.
+  if (undoFiles.some((u) => u.file.endsWith('package.json'))) {
+    console.log(
+      '[re-agentation-apply]   ⚠️  package.json changed — run `pnpm install` and restart Metro to pick up new dependencies.',
+    )
+  }
+
   // Reload ONLY when the edit added a new import / local asset — Fast Refresh
   // can't add those and would redbox (the crash the user hit). Ordinary edits
   // (incl. a remote-URL <Image>, an i18n copy change) reflow via Fast Refresh,

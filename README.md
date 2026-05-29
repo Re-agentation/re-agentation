@@ -255,6 +255,16 @@ The MCP server and watcher are local CLI tools you run by hand — never part of
 
 ---
 
+## Known limitations
+
+A few honest sharp edges (PRs welcome — see [Contributing](#contributing)):
+
+- **Brand-new dependencies need a Metro restart.** If a change asks for a package that isn't installed yet (say a new animation library), the watcher's reload can't pick up a freshly-installed module on its own — install it and restart Metro. (The watcher prints a hint when it sees `package.json` change.)
+- **Undo only covers changes made by this tool.** Re-agentation snapshots the working tree with `git` before each edit, so Undo/Redo revert exactly what a change touched. History entries recorded before that snapshotting existed (very early builds) can't be safely reverted and are marked accordingly.
+- **The particle effect is JS-driven `Animated`.** It's tuned to be light, but on low-end devices the magic-dust shimmer may drop frames during a long apply.
+
+---
+
 ## Packages
 
 | Package                                  | What it does                                                                 |
