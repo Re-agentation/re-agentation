@@ -23,7 +23,7 @@ jobs:
     #      (gh variable set RELEASE_ENABLED --body true).
     if: ${{ vars.RELEASE_ENABLED == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
