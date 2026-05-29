@@ -43,6 +43,8 @@ The hope is small and large at once: that product teams stop losing their best i
 ## Table of contents
 
 - [Quick start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Install](#install)
 - [Features (with pictures)](#features)
   - [The floating probe](#1-the-floating-probe)
   - [Tap → comment](#2-tap--comment)
@@ -56,6 +58,8 @@ The hope is small and large at once: that product teams stop losing their best i
 - [Compatibility](#compatibility)
 - [Production safety](#production-safety-dev-only-by-construction)
 - [Privacy & security](#privacy--security)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
 - [Packages](#packages)
 - [Contributing](#contributing)
 - [About the author](#about-the-author)
@@ -65,12 +69,25 @@ The hope is small and large at once: that product teams stop losing their best i
 
 ## Quick start
 
-Install the three packages as dev dependencies:
+### Prerequisites
+
+Before you start, make sure you have:
+
+- **[Claude Code](https://docs.claude.com/en/docs/claude-code/overview)** installed and signed in (`claude` on your `PATH`) — it's the agent that actually edits your files.
+- **Node.js ≥ 20**.
+- A **React Native 0.76+** app on the **New Architecture (Fabric)** — bare RN CLI or Expo SDK 52+.
+- **`react-native-svg` ≥ 13** in your app (a peer dependency — the probe's icons and the magic-dust effect render with it). Most RN apps already have it; if not, the install below adds it.
+
+### Install
 
 ```bash
+# the three Re-agentation packages + the required react-native-svg peer
 pnpm add -D @re-agentation/probe @re-agentation/metro @re-agentation/mcp
+pnpm add react-native-svg
 # or: npm i -D … / yarn add -D …
 ```
+
+> **Optional:** to attach images/video to a request, also install `react-native-image-picker` (≥ 7). It's an _optional_ peer — skip it and the 📎 Attach button simply hides itself.
 
 **1. Mount the probe** (dev-only — it tree-shakes out of production builds):
 
@@ -262,6 +279,19 @@ A few honest sharp edges (PRs welcome — see [Contributing](#contributing)):
 - **Brand-new dependencies need a Metro restart.** If a change asks for a package that isn't installed yet (say a new animation library), the watcher's reload can't pick up a freshly-installed module on its own — install it and restart Metro. (The watcher prints a hint when it sees `package.json` change.)
 - **Undo only covers changes made by this tool.** Re-agentation snapshots the working tree with `git` before each edit, so Undo/Redo revert exactly what a change touched. History entries recorded before that snapshotting existed (very early builds) can't be safely reverted and are marked accordingly.
 - **The particle effect is JS-driven `Animated`.** It's tuned to be light, but on low-end devices the magic-dust shimmer may drop frames during a long apply.
+
+---
+
+## Troubleshooting
+
+| Symptom                                                                       | Likely cause & fix                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Probe renders but icons/sparkles are blank, or a red box mentions `RNSVG`** | `react-native-svg` isn't installed (or pods aren't built). Run `pnpm add react-native-svg`, then `cd ios && pod install` and rebuild the app.                                                                                             |
+| **Nothing happens after I tap Send / the watcher does nothing**               | The `re-agentation-apply` watcher isn't running, or `claude` isn't on your `PATH`. Start it in your project root (`npx re-agentation-apply`) and confirm `claude --version` works in the same shell.                                      |
+| **Tapping a component lands on the wrong file (or a `node_modules` file)**    | You're likely not on the New Architecture, or source maps are stale. Confirm Fabric is enabled, then restart Metro with `--reset-cache`. Re-agentation discards library frames, so it falls back to grepping by component name if needed. |
+| **`claude: command not found` in the watcher logs**                           | Install [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) and make sure the shell that runs the watcher can see it (`which claude`).                                                                                    |
+| **A change asked for a new dependency and the app errors after reload**       | The watcher can't install packages for you. Install the dependency yourself and restart Metro — the watcher prints a hint when it detects a `package.json` change.                                                                        |
+| **The 📎 Attach button is missing**                                           | That's expected unless `react-native-image-picker` (≥ 7) is installed — it's an optional peer.                                                                                                                                            |
 
 ---
 

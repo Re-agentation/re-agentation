@@ -14,9 +14,10 @@ The in-app overlay for [**Re-agentation**](https://github.com/Re-agentation/re-a
 
 ```bash
 pnpm add -D @re-agentation/probe @re-agentation/metro @re-agentation/mcp
+pnpm add react-native-svg
 ```
 
-Peer deps: `react` ≥ 18, `react-native` ≥ 0.76 (New Architecture / Fabric), `react-native-svg` ≥ 13. Optional: `react-native-image-picker` ≥ 7 (image/video attachments).
+Peer deps: `react` ≥ 18, `react-native` ≥ 0.76 (New Architecture / Fabric), and **`react-native-svg` ≥ 13** (required — powers the probe's icons and the magic-dust effect). Optional: `react-native-image-picker` ≥ 7 (image/video attachments). You'll also need [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) installed, since it's the agent that performs the edits.
 
 ## Use
 
