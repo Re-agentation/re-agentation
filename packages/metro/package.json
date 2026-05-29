@@ -1,6 +1,6 @@
 {
   "name": "@re-agentation/metro",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Metro custom middleware that receives Re-agentation annotation batches from the running RN app and queues them for the MCP server.",
   "license": "MIT",
   "repository": {
