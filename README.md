@@ -32,7 +32,9 @@ We're living through the strangest moment in product development. AI can scaffol
 
 The design-to-code handoff has quietly become **the** bottleneck. Not the coding. The _pointing_. The translation between "I can see exactly what's wrong" and "here is the file, line, and token that encodes what's wrong." We've automated the hard part and left the obvious part manual.
 
-I saw [Agentation](https://github.com/benjitaylor/agentation) by [Benji Taylor](https://github.com/benjitaylor) and something clicked — _that's_ the missing interface for the AI era: point at the live UI, talk to it, let the agent do the plumbing. It worked beautifully for the web. React Native — where so many of us actually ship — had nothing like it. So I built it.
+And there's a second shift making this urgent. We've entered the era of coding _with_ AI agents — and because today's agents are especially strong at the web, a growing number of companies are migrating their old native (Swift / Kotlin) mobile apps to **React Native** so one agent-friendly codebase can serve every platform. The code is moving. But the _design workflow_ for those RN apps hasn't moved with it — tweaking a live mobile screen still means the same alt-tab-hunt-edit-reload dance it always did.
+
+I ran straight into this on a side project. Then I saw [Agentation](https://github.com/benjitaylor/agentation) by [Benji Taylor](https://github.com/benjitaylor) and something clicked — _that's_ the missing interface for the AI era: point at the live UI, talk to it, let the agent do the plumbing. It worked beautifully for the web. React Native — where more and more of us are now shipping — had nothing like it. So I built it.
 
 The hope is small and large at once: that product teams stop losing their best ideas in the gap between "I see it" and "I can describe where it lives," and that we build a smarter, calmer, more human development culture on top of these new AI tools — one where the machine handles the lookup and the person handles the taste.
 
