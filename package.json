@@ -4,7 +4,7 @@
   "private": true,
   "description": "RN dev probe + Metro middleware + MCP server. Tap a component in your iOS/Android simulator, annotate it, and have Claude Code edit the right file. Inspired by Agentation.",
   "license": "MIT",
-  "author": "",
+  "author": "Jaehwa Jung <jhjh7306@gmail.com> (https://www.linkedin.com/in/jaehwajung/)",
   "repository": {
     "type": "git",
     "url": "https://github.com/re-agentation/re-agentation.git"
@@ -35,5 +35,23 @@
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "metro": "0.81.5",
+      "metro-config": "0.81.5",
+      "metro-resolver": "0.81.5",
+      "metro-runtime": "0.81.5",
+      "metro-cache": "0.81.5",
+      "metro-cache-key": "0.81.5",
+      "metro-core": "0.81.5",
+      "metro-source-map": "0.81.5",
+      "metro-symbolicate": "0.81.5",
+      "metro-transform-worker": "0.81.5",
+      "metro-transform-plugins": "0.81.5",
+      "metro-babel-transformer": "0.81.5",
+      "metro-file-map": "0.81.5",
+      "metro-minify-terser": "0.81.5"
+    }
   }
 }
