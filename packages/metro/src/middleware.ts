@@ -18,6 +18,9 @@ import * as path from 'node:path'
 import { BodyParseError, BodyTooLargeError, readJsonBody } from './read-body'
 import { createQueue, type Queue } from './queue'
 import { createSnapshotStore, type SnapshotStore } from './snapshot-store'
+import { contentTypeFor, createMediaStore, type MediaStore } from './media-store'
+import { createUndoStore, type UndoStore } from './undo-store'
+import { createHistoryStore, type HistoryStore } from './history-store'
 
 export interface MiddlewareOptions {
   /** Project root for storing queue/snapshots. Defaults to `process.cwd()`. */
@@ -38,6 +41,11 @@ type Middleware = (req: IncomingMessage, res: ServerResponse, next: NextFn) => v
 const PREFIX = '/__agentation__/'
 
 const SNAPSHOT_PATH_RE = /^\/__agentation__\/snapshot\/([^/]+)\/([^/]+)\.png$/
+const MEDIA_PATH_RE = /^\/__agentation__\/media\/([^/]+)\/([^/]+)$/
+const HISTORY_IMG_RE = /^\/__agentation__\/history\/([^/]+)\/(before|after)\.png$/
+const HISTORY_UNDO_RE = /^\/__agentation__\/history\/([^/]+)\/undo$/
+const HISTORY_REDO_RE = /^\/__agentation__\/history\/([^/]+)\/redo$/
+const HISTORY_DELETE_RE = /^\/__agentation__\/history\/([^/]+)$/
 
 export function createMiddleware(options: MiddlewareOptions = {}): (inner: unknown) => Middleware {
   const projectRoot = options.projectRoot ?? process.cwd()
@@ -45,6 +53,9 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
   const verbose = options.verbose ?? true
   const queue = options.queue ?? createQueue(projectRoot, storageDir)
   const snapshotStore = options.snapshotStore ?? createSnapshotStore(projectRoot, storageDir)
+  const mediaStore: MediaStore = createMediaStore(projectRoot, storageDir)
+  const undoStore: UndoStore = createUndoStore(projectRoot, storageDir)
+  const historyStore: HistoryStore = createHistoryStore(projectRoot, storageDir)
 
   const log = (...args: unknown[]): void => {
     if (verbose) console.log('[re-agentation]', ...args)
@@ -88,18 +99,90 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
     // Snapshot serve (must come before generic POST snapshot).
     if (method === 'GET' && SNAPSHOT_PATH_RE.test(route)) {
       const m = SNAPSHOT_PATH_RE.exec(route)!
-      const batchId = m[1]!
-      const itemId = m[2]!
-      const buf = await snapshotStore.read({ batchId, itemId })
+      const buf = await snapshotStore.read({ batchId: m[1]!, itemId: m[2]! })
       if (!buf) return notFound(res)
-      res.statusCode = 200
-      res.setHeader('content-type', 'image/png')
-      res.setHeader('cache-control', 'no-store')
-      res.end(buf)
-      return
+      return sendBuffer(res, buf, 'image/png')
+    }
+
+    // Media serve.
+    if (method === 'GET' && MEDIA_PATH_RE.test(route)) {
+      const m = MEDIA_PATH_RE.exec(route)!
+      const buf = await mediaStore.read({ batchId: m[1]!, file: m[2]! })
+      if (!buf) return notFound(res)
+      return sendBuffer(res, buf, contentTypeFor(m[2]!))
+    }
+
+    // History image serve.
+    if (method === 'GET' && HISTORY_IMG_RE.test(route)) {
+      const m = HISTORY_IMG_RE.exec(route)!
+      const buf = await historyStore.readImage(m[1]!, m[2] as 'before' | 'after')
+      if (!buf) return notFound(res)
+      return sendBuffer(res, buf, 'image/png')
+    }
+
+    // Per-entry history undo.
+    if (method === 'POST' && HISTORY_UNDO_RE.test(route)) {
+      const id = HISTORY_UNDO_RE.exec(route)![1]!
+      const meta = await historyStore.getMeta(id)
+      if (!meta) return notFound(res)
+      // Legacy entries (no changedFiles) have a stale single-file stash that
+      // could revert the wrong file — refuse and mark Failed instead.
+      if (!meta.changedFiles || meta.changedFiles.length === 0) {
+        await historyStore.markStatus(id, 'failed', new Date().toISOString())
+        log(`history undo ${id} → legacy entry, marked failed`)
+        return json(res, 200, { restored: 0, files: [], legacy: true, route: null })
+      }
+      const result = await undoStore.restore(meta.batchId, meta.itemId, 'undo')
+      await historyStore.markStatus(
+        id,
+        result.restored > 0 ? 'undone' : 'failed',
+        new Date().toISOString(),
+      )
+      log(`history undo ${id} → restored ${result.restored} file(s)`)
+      return json(res, 200, { ...result, route: meta.route ?? null })
+    }
+
+    if (method === 'POST' && HISTORY_REDO_RE.test(route)) {
+      const id = HISTORY_REDO_RE.exec(route)![1]!
+      const meta = await historyStore.getMeta(id)
+      if (!meta) return notFound(res)
+      const result = await undoStore.restore(meta.batchId, meta.itemId, 'redo')
+      if (result.restored > 0)
+        await historyStore.markStatus(id, 'applied', new Date().toISOString())
+      log(`history redo ${id} → re-applied ${result.restored} file(s)`)
+      return json(res, 200, { ...result, route: meta.route ?? null })
+    }
+
+    if (method === 'DELETE' && HISTORY_DELETE_RE.test(route)) {
+      const id = HISTORY_DELETE_RE.exec(route)![1]!
+      const ok = await historyStore.deleteEntry(id)
+      log(`history delete ${id} → ${ok ? 'ok' : 'not found'}`)
+      return json(res, ok ? 200 : 404, { deleted: ok })
     }
 
     switch (`${method} ${route}`) {
+      case 'GET /__agentation__/history': {
+        const limNum = Number(query.get('limit'))
+        const offNum = Number(query.get('offset'))
+        const limit = Number.isFinite(limNum) && limNum > 0 ? limNum : 10
+        const offset = Number.isFinite(offNum) && offNum > 0 ? offNum : 0
+        const queryStr = query.get('q') ?? undefined
+        const statusParam = query.get('status')
+        const status =
+          statusParam === 'applied' || statusParam === 'undone' || statusParam === 'failed'
+            ? statusParam
+            : 'all'
+        return json(res, 200, {
+          entries: await historyStore.list({ limit, offset, query: queryStr, status }),
+        })
+      }
+
+      case 'POST /__agentation__/media':
+        return handleMedia(req, res)
+
+      case 'POST /__agentation__/undo':
+        return handleUndo(req, res)
+
       case 'GET /__agentation__/health':
         return json(res, 200, await queue.health())
 
@@ -118,6 +201,18 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
 
       case 'POST /__agentation__/ack':
         return handleAck(req, res)
+
+      case 'GET /__agentation__/status': {
+        const batchId = query.get('batchId')
+        if (!batchId) return json(res, 400, { error: 'invalid', message: 'batchId required' })
+        return json(res, 200, await queue.getStatus(batchId))
+      }
+
+      case 'POST /__agentation__/fetched':
+        return handleFetched(req, res)
+
+      case 'POST /__agentation__/cancel':
+        return handleCancel(req, res)
 
       default:
         return notFound(res)
@@ -189,6 +284,91 @@ export function createMiddleware(options: MiddlewareOptions = {}): (inner: unkno
       throw err
     }
   }
+
+  async function handleFetched(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    try {
+      const body = await readJsonBody<{ batchId: string }>(req)
+      if (!body?.batchId) {
+        return json(res, 400, { error: 'invalid', message: 'expected { batchId }' })
+      }
+      await queue.markFetched(body.batchId)
+      return json(res, 200, { ok: true })
+    } catch (err) {
+      if (err instanceof BodyParseError) {
+        return json(res, 400, { error: 'bad_json' })
+      }
+      throw err
+    }
+  }
+
+  async function handleCancel(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    try {
+      const body = await readJsonBody<{ batchId: string }>(req)
+      if (!body?.batchId) {
+        return json(res, 400, { error: 'invalid', message: 'expected { batchId }' })
+      }
+      const result = await queue.cancel(body.batchId)
+      log(`cancel ${body.batchId} → ${result.cancelled ? 'removed' : 'not found'}`)
+      return json(res, 200, result)
+    } catch (err) {
+      if (err instanceof BodyParseError) {
+        return json(res, 400, { error: 'bad_json' })
+      }
+      throw err
+    }
+  }
+
+  async function handleUndo(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    try {
+      const body = await readJsonBody<{ batchId: string; itemId?: string }>(req)
+      if (!body?.batchId) {
+        return json(res, 400, { error: 'invalid', message: 'expected { batchId, itemId? }' })
+      }
+      const result = await undoStore.restore(body.batchId, body.itemId)
+      log(
+        `undo ${body.batchId}${body.itemId ? `/${body.itemId}` : ''} → ${result.restored} file(s)`,
+      )
+      return json(res, 200, result)
+    } catch (err) {
+      if (err instanceof BodyParseError) return json(res, 400, { error: 'bad_json' })
+      throw err
+    }
+  }
+
+  async function handleMedia(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    try {
+      // Videos can be large — allow up to 128 MB for media uploads.
+      const body = await readJsonBody<{
+        batchId: string
+        base64: string
+        ext?: string
+        kind?: 'image' | 'video'
+      }>(req, 128 * 1024 * 1024)
+      if (!body?.batchId || !body?.base64) {
+        return json(res, 400, { error: 'invalid', message: 'expected { batchId, base64 }' })
+      }
+      const saved = await mediaStore.save({
+        batchId: body.batchId,
+        base64: body.base64,
+        ext: body.ext ?? '',
+        kind: body.kind ?? 'image',
+      })
+      log(`media saved ${saved.file} for ${body.batchId}`)
+      return json(res, 200, { ok: true, url: saved.url, file: saved.file })
+    } catch (err) {
+      if (err instanceof BodyTooLargeError)
+        return json(res, 413, { error: 'too_large', limit: err.limit })
+      if (err instanceof BodyParseError) return json(res, 400, { error: 'bad_json' })
+      throw err
+    }
+  }
+}
+
+function sendBuffer(res: ServerResponse, buf: Buffer, contentType: string): void {
+  res.statusCode = 200
+  res.setHeader('content-type', contentType)
+  res.setHeader('cache-control', 'no-store')
+  res.end(buf)
 }
 
 function json(res: ServerResponse, status: number, payload: unknown): void {

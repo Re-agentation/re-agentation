@@ -12,6 +12,10 @@ export type { AgentationProbeProps, ProbePosition } from './AgentationProbe'
 
 export { resolveMetroHost } from './probe-transport'
 
+// Optional: enable history deep-link nav by registering your nav container ref.
+export { setReagentationNavRef } from './nav-ref'
+export type { ReagentationNavRef } from './nav-ref'
+
 // Advanced / testing: programmatic capture at a screen coordinate.
 export { captureAt } from './fiber-walk'
 export type { CaptureResult, TapHit, FiberWalkOptions } from './fiber-walk'

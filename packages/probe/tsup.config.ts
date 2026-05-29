@@ -7,7 +7,13 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
-  external: ['react', 'react-native', 'react-native-view-shot'],
+  external: [
+    'react',
+    'react-native',
+    'react-native-svg',
+    'react-native-image-picker',
+    'react-native-view-shot',
+  ],
   // RN bundler expects platform-neutral output.
   platform: 'neutral',
   target: 'es2022',
