@@ -1,6 +1,7 @@
 {
   "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "strict": true,
     "types": ["react-native"]
   },
