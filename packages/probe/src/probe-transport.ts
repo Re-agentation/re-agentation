@@ -97,3 +97,210 @@ export async function sendBatch(
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
+
+export type ItemStatus = 'queued' | 'processing' | 'done'
+
+export interface BatchStatus {
+  found: boolean
+  fetchedAt: string | null
+  items: Array<{ id: string; status: ItemStatus }>
+}
+
+/**
+ * Poll a batch's live per-item status from the Metro middleware. When the
+ * batch is fully acked + archived, the middleware reports `found: false`,
+ * which the caller should treat as "all items done".
+ */
+export async function getBatchStatus(
+  batchId: string,
+  opts: TransportOptions = {},
+): Promise<BatchStatus | null> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  try {
+    const res = await fetchImpl(
+      `${host}/__agentation__/status?batchId=${encodeURIComponent(batchId)}`,
+      { method: 'GET' },
+    )
+    if (!res.ok) return null
+    return (await res.json()) as BatchStatus
+  } catch {
+    return null
+  }
+}
+
+/** Cancel (remove) a batch from the Metro queue so it is never processed. */
+export async function cancelBatch(batchId: string, opts: TransportOptions = {}): Promise<boolean> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  try {
+    const res = await fetchImpl(`${host}/__agentation__/cancel`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ batchId }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/** Revert a batch's edits (restore the stashed original files). */
+export async function undoBatch(batchId: string, opts: TransportOptions = {}): Promise<boolean> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  try {
+    const res = await fetchImpl(`${host}/__agentation__/undo`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ batchId }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+export interface HistoryEntry {
+  id: string
+  ts: string
+  batchId: string
+  itemId: string
+  component: string
+  comment: string
+  file?: string | null
+  line?: number | null
+  route?: string | null
+  changedFiles?: string[]
+  status?: EntryStatus
+  statusAt?: string
+  undone?: boolean // legacy
+}
+
+export type EntryStatus = 'applied' | 'undone' | 'failed'
+export type HistoryStatus = 'all' | EntryStatus
+
+/** Effective status of an entry (tolerates legacy `undone` flag). */
+export function entryStatus(e: HistoryEntry): EntryStatus {
+  return e.status ?? (e.undone ? 'undone' : 'applied')
+}
+
+export interface HistoryQuery extends TransportOptions {
+  /** Page size (default 10). */
+  limit?: number
+  /** Entries to skip (for infinite scroll). */
+  offset?: number
+  /** Filter by prompt/component substring. */
+  q?: string
+  /** Filter by applied vs undone (default 'all'). */
+  status?: HistoryStatus
+}
+
+/** Fetch a page of applied-change history (newest first). */
+export async function getHistory(opts: HistoryQuery = {}): Promise<HistoryEntry[]> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  const params = new URLSearchParams()
+  params.set('limit', String(opts.limit ?? 10))
+  params.set('offset', String(opts.offset ?? 0))
+  if (opts.q?.trim()) params.set('q', opts.q.trim())
+  if (opts.status && opts.status !== 'all') params.set('status', opts.status)
+  try {
+    const res = await fetchImpl(`${host}/__agentation__/history?${params.toString()}`, {
+      method: 'GET',
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { entries?: HistoryEntry[] }
+    return data.entries ?? []
+  } catch {
+    return []
+  }
+}
+
+/** Build the served URL for a history before/after image. */
+export function historyImageUrl(
+  entryId: string,
+  which: 'before' | 'after',
+  opts: TransportOptions = {},
+): string {
+  const host = resolveMetroHost(opts.hostOverride)
+  return `${host}/__agentation__/history/${entryId}/${which}.png`
+}
+
+/**
+ * Undo a single history entry (restore the original of every file it changed).
+ * `restored` is the number of files reverted — 0 means there was nothing to
+ * revert (e.g. a legacy entry recorded before multi-file undo existed).
+ */
+export async function undoHistory(
+  entryId: string,
+  opts: TransportOptions = {},
+): Promise<{ ok: boolean; restored: number; legacy?: boolean; route?: string | null }> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  try {
+    const res = await fetchImpl(`${host}/__agentation__/history/${entryId}/undo`, { method: 'POST' })
+    if (!res.ok) return { ok: false, restored: 0 }
+    const data = (await res.json()) as { route?: string | null; restored?: number; legacy?: boolean }
+    return { ok: true, restored: data.restored ?? 0, legacy: data.legacy, route: data.route ?? null }
+  } catch {
+    return { ok: false, restored: 0 }
+  }
+}
+
+/** Re-apply a previously-undone entry (Redo). `restored` = files re-applied. */
+export async function redoHistory(
+  entryId: string,
+  opts: TransportOptions = {},
+): Promise<{ ok: boolean; restored: number; route?: string | null }> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  try {
+    const res = await fetchImpl(`${host}/__agentation__/history/${entryId}/redo`, { method: 'POST' })
+    if (!res.ok) return { ok: false, restored: 0 }
+    const data = (await res.json()) as { route?: string | null; restored?: number }
+    return { ok: true, restored: data.restored ?? 0, route: data.route ?? null }
+  } catch {
+    return { ok: false, restored: 0 }
+  }
+}
+
+/** Permanently delete one or more history entries. */
+export async function deleteHistory(
+  entryIds: string[],
+  opts: TransportOptions = {},
+): Promise<{ ok: boolean; deleted: number }> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  let deleted = 0
+  for (const id of entryIds) {
+    try {
+      const res = await fetchImpl(`${host}/__agentation__/history/${id}`, { method: 'DELETE' })
+      if (res.ok) deleted++
+    } catch {
+      /* skip */
+    }
+  }
+  return { ok: deleted === entryIds.length, deleted }
+}
+
+/** Upload a base64 media attachment; returns its served URL. */
+export async function uploadMedia(
+  args: { batchId: string; base64: string; ext: string; kind: 'image' | 'video' },
+  opts: TransportOptions = {},
+): Promise<string | null> {
+  const host = resolveMetroHost(opts.hostOverride)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  try {
+    const res = await fetchImpl(`${host}/__agentation__/media`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(args),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { url?: string }
+    return data.url ?? null
+  } catch {
+    return null
+  }
+}

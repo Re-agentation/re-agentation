@@ -23,6 +23,13 @@ export interface CapturedElement {
   props: Record<string, unknown>
 }
 
+export interface MediaAttachment {
+  type: 'image' | 'video'
+  /** Metro-served URL, e.g. `http://host/__agentation__/media/<batchId>/<file>`. */
+  url: string
+  name?: string
+}
+
 export interface BatchItem {
   id: string
   element: CapturedElement
@@ -33,6 +40,10 @@ export interface BatchItem {
   markerCoords?: { x: number; y: number; w: number; h: number }
   /** URL to a PNG screenshot of the component, served by the Metro middleware. */
   screenshotUrl?: string
+  /** User-attached reference images/videos that guide the edit. */
+  media?: MediaAttachment[]
+  /** Best-effort current navigation route name, for history deep-link nav. */
+  route?: string | null
 }
 
 export interface BatchPayload {

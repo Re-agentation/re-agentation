@@ -99,6 +99,10 @@ If you find yourself in step 4 on a working RN 0.76+ project, add `@babel/plugin
 
 ## Production safety
 
-Every line of probe code is wrapped in `if (__DEV__)`. The Metro middleware only registers when `process.env.NODE_ENV !== 'production'`. The MCP server is a separate process — production builds don't even know it exists.
+Dev-only by construction, in three independent layers:
+
+1. **Runtime guard** — `AgentationProbe` returns `null` when `__DEV__` is false (so it never renders in a release build), and every menu it owns — batch sheets, the History list/detail, search, shimmer overlay — lives inside that component, so they're all gated with it.
+2. **Tree-shaking** — the documented integration gates the import itself: `const AgentationProbe = __DEV__ ? require('@re-agentation/probe').AgentationProbe : () => null`. Metro inlines `__DEV__ = false` in release and dead-code-eliminates the `require`, so the probe package isn't bundled at all.
+3. **No Metro = no backend** — the queue + history/undo/media stores + `/__agentation__/*` endpoints are Metro **dev-server** middleware. A production app ships a static bundle with no Metro, so that whole surface is absent. The MCP server + `re-agentation-apply` watcher are separate local CLI processes, never part of an app binary.
 
 CI sanity check: after a release build, grep the output bundle for `AgentationProbe`. It must not appear. The example apps wire this check into their CI.

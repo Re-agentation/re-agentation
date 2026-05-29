@@ -23,8 +23,21 @@ export interface QueueEntry {
   ts: string
   /** Full batch payload as received from the probe. Treated as opaque here. */
   payload: unknown
+  /** Every item id in the batch (immutable). Used to compute per-item status. */
+  allItemIds: string[]
   /** Items still awaiting ack. Initially all item ids from the batch. */
   inflightItemIds: string[]
+  /** Set when the MCP server first fetches this batch (Claude picked it up). */
+  fetchedAt?: string | null
+}
+
+/** Per-item live status for the probe's progress UI. */
+export type ItemStatus = 'queued' | 'processing' | 'done'
+
+export interface BatchStatus {
+  found: boolean
+  fetchedAt: string | null
+  items: Array<{ id: string; status: ItemStatus }>
 }
 
 export interface AckRequest {
@@ -46,6 +59,12 @@ export interface Queue {
   }): Promise<QueueEntry>
   listRecent(sinceIsoTs?: string, limit?: number): Promise<QueueEntry[]>
   ack(req: AckRequest): Promise<AckResult>
+  /** Mark a batch as picked up by the agent (flips its items to 'processing'). */
+  markFetched(batchId: string): Promise<void>
+  /** Live per-item status for the probe's progress UI. */
+  getStatus(batchId: string): Promise<BatchStatus>
+  /** Remove a batch from the queue without archiving (user cancelled). */
+  cancel(batchId: string): Promise<{ cancelled: boolean }>
   health(): Promise<{ ok: true; inflight: number }>
 }
 
@@ -105,11 +124,14 @@ export function createQueue(projectRoot: string, storageDir = '.agentation'): Qu
     async appendBatch(payload) {
       return enqueue(async () => {
         await ensureDirs()
+        const ids = payload.items.map((it) => it.id)
         const entry: QueueEntry = {
           batchId: payload.batchId,
           ts: payload.ts ?? new Date().toISOString(),
           payload,
-          inflightItemIds: payload.items.map((it) => it.id),
+          allItemIds: ids,
+          inflightItemIds: ids.slice(),
+          fetchedAt: null,
         }
         await fs.appendFile(queuePath, JSON.stringify(entry) + '\n', 'utf8')
         return entry
@@ -152,6 +174,45 @@ export function createQueue(projectRoot: string, storageDir = '.agentation'): Qu
         next[idx] = updatedEntry
         await writeAllEntries(next)
         return { archived: false, remainingItemIds: nextInflight }
+      })
+    },
+
+    async markFetched(batchId) {
+      return enqueue(async () => {
+        const entries = await readAllEntries()
+        const idx = entries.findIndex((e) => e.batchId === batchId)
+        if (idx < 0) return
+        if (entries[idx]!.fetchedAt) return // already marked
+        entries[idx] = { ...entries[idx]!, fetchedAt: new Date().toISOString() }
+        await writeAllEntries(entries)
+      })
+    },
+
+    async getStatus(batchId) {
+      const entries = await readAllEntries()
+      const entry = entries.find((e) => e.batchId === batchId)
+      if (!entry) {
+        // Not in the live queue → fully acked + archived → everything done.
+        return { found: false, fetchedAt: null, items: [] }
+      }
+      const inflight = new Set(entry.inflightItemIds)
+      const items = entry.allItemIds.map((id) => {
+        let status: ItemStatus
+        if (!inflight.has(id)) status = 'done'
+        else if (entry.fetchedAt) status = 'processing'
+        else status = 'queued'
+        return { id, status }
+      })
+      return { found: true, fetchedAt: entry.fetchedAt ?? null, items }
+    },
+
+    async cancel(batchId) {
+      return enqueue(async () => {
+        const entries = await readAllEntries()
+        const next = entries.filter((e) => e.batchId !== batchId)
+        if (next.length === entries.length) return { cancelled: false }
+        await writeAllEntries(next)
+        return { cancelled: true }
       })
     },
 

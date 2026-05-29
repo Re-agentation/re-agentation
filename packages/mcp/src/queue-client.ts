@@ -69,7 +69,17 @@ export function createQueueClient(options: QueueClientOptions = {}): QueueClient
         'GET',
         '/__agentation__/queue/recent?limit=1',
       )
-      return entries[0] ?? null
+      const batch = entries[0] ?? null
+      if (batch) {
+        // Mark fetched so the probe's progress UI flips the batch to
+        // 'processing'. Best-effort — don't fail nextBatch if this errors.
+        try {
+          await jsonFetch('POST', '/__agentation__/fetched', { batchId: batch.batchId })
+        } catch {
+          /* ignore */
+        }
+      }
+      return batch
     },
 
     async listBatches(limit = 10) {

@@ -51,7 +51,12 @@ export function normalizeSourcePath(rawFile: string, opts: NormalizeOptions = {}
 
   // 4. Skip nothings.
   if (!p) return null
-  if (p.startsWith('node_modules/')) return null
+  // Any path inside node_modules is library code, never the user's source —
+  // skip it so the symbolicate consumer picks the next (app) frame. Checked on
+  // the ORIGINAL absolute path too (a tap often resolves first to an RN
+  // primitive like Pressable, whose top frame lives in react-native itself).
+  if (p.startsWith('node_modules/') || p.includes('/node_modules/')) return null
+  if (rawFile.includes('/node_modules/')) return null
   // Skip Metro bundle URLs that survived (symbolicate failed). The entry
   // bundle is `index.bundle` for most apps but `App.bundle` for bare RN 0.85
   // New-Arch builds, and Metro appends a `.bundle?...` query — match any.

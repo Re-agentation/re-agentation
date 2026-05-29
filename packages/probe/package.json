@@ -1,6 +1,6 @@
 {
   "name": "@re-agentation/probe",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "React Native dev-only probe overlay — tap a component, annotate it, batch into a single AI edit request. Part of Re-agentation.",
   "license": "MIT",
   "repository": {
@@ -46,10 +46,12 @@
   },
   "peerDependencies": {
     "react": ">=18.0.0",
-    "react-native": ">=0.76.0"
+    "react-native": ">=0.76.0",
+    "react-native-svg": ">=13.0.0",
+    "react-native-image-picker": ">=7.0.0"
   },
   "peerDependenciesMeta": {
-    "react-native-view-shot": {
+    "react-native-image-picker": {
       "optional": true
     }
   },
@@ -58,6 +60,8 @@
     "@types/react-native": "^0.73.0",
     "react": "^19.0.0",
     "react-native": "^0.76.0",
+    "react-native-image-picker": "^7.2.3",
+    "react-native-svg": "^15.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.3",
     "vitest": "^3.0.0"

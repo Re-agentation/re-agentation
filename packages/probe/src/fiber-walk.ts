@@ -136,6 +136,9 @@ export async function captureAt(
 
   const props = fiber?.memoizedProps != null ? shallowSafeProps(fiber.memoizedProps) : {}
 
+  // Prefer the inspected view's measured rect; fall back to a box around the
+  // tap point so an empty-region pin still gets a shimmer target (the inspector
+  // sometimes returns no frame for a bare container / blank area).
   const markerCoords = viewData.frame
     ? {
         x: viewData.frame.left,
@@ -143,7 +146,7 @@ export async function captureAt(
         w: viewData.frame.width,
         h: viewData.frame.height,
       }
-    : undefined
+    : { x: hit.x - 60, y: hit.y - 60, w: 120, h: 120 }
 
   return { component, tree, source, props, fallback, markerCoords }
 }
@@ -283,7 +286,7 @@ function collectSourceFrames(fiber: AnyFiber | null, componentStack?: string): B
 // ─── name helpers ─────────────────────────────────────────────────────────
 
 const INTERNAL_NAME_RE =
-  /^(?:_?LogBox|DebuggingOverlay|AppContainer|RCT|View$|Text$|ScrollView$|Provider$|Consumer$|.*Provider$|.*Context$|withDevTools|ForwardRef|Memo|Suspense|Fragment)/
+  /^(?:_?LogBox|DebuggingOverlay|AppContainer|RCT|View$|Text$|ScrollView$|Image$|TextInput$|Pressable$|Touchable\w*|SafeAreaView$|KeyboardAvoidingView$|FlatList$|SectionList$|VirtualizedList\w*|Animated|GestureHandlerRootView$|RNGestureHandler\w*|RNS\w*|Provider$|Consumer$|.*Provider$|.*Context$|withDevTools|ForwardRef|Memo|Suspense|Fragment)/
 const ANON_RE = /^anonymous$|^Object$|^<\?>$|^unknown$/
 
 function isUserComponentName(name: string): boolean {

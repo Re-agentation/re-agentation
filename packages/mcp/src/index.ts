@@ -22,3 +22,6 @@ export type {
 
 export { registerTools } from './tools'
 export type { RegisterToolsOptions } from './tools'
+
+export { runApplyWatcher } from './apply-watcher'
+export type { ApplyWatcherOptions } from './apply-watcher'

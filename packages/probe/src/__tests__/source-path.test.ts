@@ -30,6 +30,16 @@ describe('normalizeSourcePath', () => {
     ).toBe(null)
   })
 
+  it('skips absolute node_modules paths even without a known project root', () => {
+    // A tap often resolves first to an RN primitive (Pressable) whose top frame
+    // lives in react-native itself — must be skipped so the next (app) frame wins.
+    expect(
+      normalizeSourcePath(
+        '/Users/jay/Desktop/Project/node_modules/.pnpm/react-native@0.85.3/node_modules/react-native/Libraries/Components/Pressable/Pressable.js',
+      ),
+    ).toBe(null)
+  })
+
   it('strips webpack and turbopack prefixes', () => {
     expect(normalizeSourcePath('webpack://_N_E/apps/landing/page.tsx')).toBe(
       'apps/landing/page.tsx',

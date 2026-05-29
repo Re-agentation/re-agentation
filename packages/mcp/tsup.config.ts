@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     server: 'src/server.ts',
     'http-server': 'src/http-server.ts',
+    'apply-watcher': 'src/apply-watcher.ts',
   },
   format: ['esm', 'cjs'],
   dts: { entry: 'src/index.ts' },
