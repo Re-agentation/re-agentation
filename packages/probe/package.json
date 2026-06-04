@@ -59,7 +59,7 @@
     "@types/react": "^19.0.7",
     "@types/react-native": "^0.73.0",
     "react": "^19.0.0",
-    "react-native": "^0.76.0",
+    "react-native": "^0.85.3",
     "react-native-image-picker": "^7.2.3",
     "react-native-svg": "^15.0.0",
     "tsup": "^8.3.5",
