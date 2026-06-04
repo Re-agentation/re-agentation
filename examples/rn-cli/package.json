@@ -13,7 +13,7 @@
   "dependencies": {
     "@re-agentation/metro": "workspace:*",
     "@re-agentation/probe": "workspace:*",
-    "react": "18.3.1",
+    "react": "19.2.7",
     "react-native": "0.76.5"
   },
   "devDependencies": {
@@ -24,7 +24,7 @@
     "@react-native/babel-preset": "0.76.5",
     "@react-native/metro-config": "0.76.5",
     "@react-native/typescript-config": "0.76.5",
-    "@types/react": "^18.3.12",
+    "@types/react": "^19.2.16",
     "typescript": "^6.0.3"
   }
 }
