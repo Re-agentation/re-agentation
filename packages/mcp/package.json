@@ -53,8 +53,8 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "tsup": "^8.3.5",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "publishConfig": {
     "access": "public"
