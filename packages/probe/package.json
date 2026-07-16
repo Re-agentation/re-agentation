@@ -63,8 +63,8 @@
     "react-native-image-picker": "^7.2.3",
     "react-native-svg": "^15.0.0",
     "tsup": "^8.3.5",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "publishConfig": {
     "access": "public"
